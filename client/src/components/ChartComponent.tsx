@@ -9,6 +9,7 @@ import {
   ReferenceLine,
   Area,
   Bar,
+  Scatter,
 } from 'recharts';
 import { CandleData } from '../types';
 
@@ -62,6 +63,36 @@ const Candlestick = (props: any) => {
         stroke={stroke}
         strokeWidth={1}
       />
+      
+      {/* 売り買いのシグナルマーク表示 */}
+      {props.signals && props.signals.map((sig: any, index: number) => {
+        const isBuy = sig.type === 'buy';
+        const markerY = isBuy ? lowY + 12 : highY - 12;
+        const markerColor = isBuy ? 'oklch(0.55 0.18 25)' : 'oklch(0.65 0.18 140)'; // 買い=赤, 売り=緑
+        const label = isBuy ? 'B' : 'S';
+
+        return (
+          <g key={index} className="animate-bounce">
+            {/* 三角矢印 */}
+            <path
+              d={isBuy ? `M ${xOffset + candleWidth/2} ${lowY + 5} L ${xOffset + candleWidth/2 - 4} ${lowY + 12} L ${xOffset + candleWidth/2 + 4} ${lowY + 12} Z` : `M ${xOffset + candleWidth/2} ${highY - 5} L ${xOffset + candleWidth/2 - 4} ${highY - 12} L ${xOffset + candleWidth/2 + 4} ${highY - 12} Z`}
+              fill={markerColor}
+            />
+            {/* B / S テキスト */}
+            <text
+              x={xOffset + candleWidth / 2}
+              y={isBuy ? lowY + 22 : highY - 16}
+              fill={markerColor}
+              fontSize="9px"
+              fontWeight="bold"
+              textAnchor="middle"
+              className="font-mono"
+            >
+              {label}
+            </text>
+          </g>
+        );
+      })}
     </g>
   );
 };
@@ -225,7 +256,16 @@ export default function ChartComponent({ data, selectedCandle, onSelectCandle }:
             {/* ローソク足 (カスタムレンダラー) */}
             <Bar
               dataKey="close"
-              shape={<Candlestick yDomain={yDomain} />}
+              shape={(props: any) => {
+                const candleData = activeCandles[props.index];
+                return (
+                  <Candlestick
+                    {...props}
+                    yDomain={yDomain}
+                    signals={candleData?.signals}
+                  />
+                );
+              }}
             />
           </ComposedChart>
         </ResponsiveContainer>
