@@ -135,12 +135,15 @@ export function simulateStock(
       continue;
     }
 
-    // 1. 買いシグナル (RSI売られすぎ、またはボリンジャーバンド下限到達、またはゴールデンクロス)
+    // 1. 買いシグナル (高勝率な合流条件：ゴールデンクロスかつ売られすぎ、またはボリバン下限到達)
     const isRsiOversold = curr.rsi <= rsiLower;
     const isBbLower = curr.close <= curr.bbLower;
     const isGoldenCross = prev.ma5 <= prev.ma25 && curr.ma5 > curr.ma25;
 
-    if (positionShares === 0 && (isRsiOversold || isBbLower || isGoldenCross)) {
+    // 「ここぞというタイミング」：GCかつ(RSI売られすぎ、またはボリバン下限)の時に買いを厳選
+    const shouldBuy = isGoldenCross && (isRsiOversold || isBbLower);
+
+    if (positionShares === 0 && shouldBuy) {
       // 資金の全額(または最大)で買えるだけ買う
       const maxSpend = capital * 0.98; // 手数料等のバッファ
       const shares = Math.floor(maxSpend / curr.close);
@@ -161,15 +164,21 @@ export function simulateStock(
       }
     }
 
-    // 2. 売りシグナル (RSI買われすぎ、またはボリンジャーバンド上限到達、またはデッドクロス)
+    // 2. 売りシグナル (上昇トレンドのフライング売り防止 ＆ デッドクロス厳選)
     const isRsiOverbought = curr.rsi >= rsiUpper;
     const isBbUpper = curr.close >= curr.bbUpper;
     const isDeadCross = prev.ma5 >= prev.ma25 && curr.ma5 < curr.ma25;
 
+    // 強い上昇トレンド中はRSI/ボリバン上限タッチでの売りを抑制（ホールド）
+    const isStrongUpTrend = curr.ma5 > curr.ma25 * 1.003 && curr.close >= curr.ma5;
+    
+    // 売りシグナルの厳格化：デッドクロス発生、または(トレンドが強くない状態での買われすぎ＋ボリバン上限)
+    const shouldSell = isDeadCross || (isRsiOverbought && isBbUpper && !isStrongUpTrend);
+
     // 損切りロジック (-1.5% で強制損切り)
     const isStopLoss = positionShares > 0 && curr.close <= positionPrice * 0.985;
 
-    if (positionShares > 0 && (isRsiOverbought || isBbUpper || isDeadCross || isStopLoss)) {
+    if (positionShares > 0 && (shouldSell || isStopLoss)) {
       const totalAmount = positionShares * curr.close;
       const profit = totalAmount - (positionShares * positionPrice);
       const profitRate = (curr.close - positionPrice) / positionPrice;

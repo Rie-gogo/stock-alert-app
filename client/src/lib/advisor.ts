@@ -56,13 +56,22 @@ export function diagnoseMarket(
   }
 
   // 2. RSI（売られすぎ・買われすぎ）
+  // 改善点：強い上昇トレンド（5MA > 25MA かつ価格が5MAの上）の時は、RSIが高くても「売り推奨」にせず「上昇継続・ホールド」としてスコアを調整する
+  const isStrongUpTrend = curr.ma5 !== undefined && curr.ma25 !== undefined && curr.ma5 > curr.ma25 * 1.003 && curr.close >= curr.ma5;
+
   if (curr.rsi !== undefined) {
     if (curr.rsi <= rsiLower) {
       score += 35;
       reasons.push(`⚡ RSIが${curr.rsi.toFixed(0)}%と極めて低く、「売られすぎ」からの反発タイミングです。`);
     } else if (curr.rsi >= rsiUpper) {
-      score -= 35;
-      reasons.push(`🔥 RSIが${curr.rsi.toFixed(0)}%と極めて高く、「買われすぎ」による調整下落の危険があります。`);
+      if (isStrongUpTrend) {
+        // 強い上昇トレンド中は、RSIが高くても売りスコアを引かず、むしろ上昇の強さを評価してホールド推奨とする
+        score += 10; 
+        reasons.push(`🔥 RSIは${curr.rsi.toFixed(0)}%と高い（買われすぎ）ですが、非常に強い上昇トレンド（バンドウォーク）のため「ホールド（上昇継続）」を推奨します。`);
+      } else {
+        score -= 35;
+        reasons.push(`🔥 RSIが${curr.rsi.toFixed(0)}%と極めて高く、「買われすぎ」による調整下落の危険があります。`);
+      }
     } else {
       // ニュートラル
       if (curr.rsi > 45 && curr.rsi < 55) {
@@ -77,8 +86,14 @@ export function diagnoseMarket(
       score += 30;
       reasons.push('🛡️ 価格がボリンジャーバンドの最下限(-2σ)に到達。反発しやすい位置です。');
     } else if (curr.close >= curr.bbUpper) {
-      score -= 30;
-      reasons.push('🎯 価格がボリンジャーバンドの最上限(+2σ)に到達。売られやすい天井圏です。');
+      if (isStrongUpTrend) {
+        // 強い上昇トレンド中の+2σ到達は「買いが非常に強い」ことを意味するため、売りスコアを引かない
+        score += 5;
+        reasons.push('🎯 価格がボリバン上限(+2σ)を突破中。強い上昇圧力が続いています。');
+      } else {
+        score -= 30;
+        reasons.push('🎯 価格がボリンジャーバンドの最上限(+2σ)に到達。売られやすい天井圏です。');
+      }
     }
   }
 
