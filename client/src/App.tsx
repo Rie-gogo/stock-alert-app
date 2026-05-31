@@ -27,11 +27,11 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider
-        defaultTheme="light"
+        defaultTheme="dark"
         // switchable
       >
         <TooltipProvider>
-          <Toaster />
+          <Toaster theme="dark" position="bottom-right" />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
