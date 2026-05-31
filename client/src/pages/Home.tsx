@@ -5,6 +5,7 @@ import ChartComponent from '../components/ChartComponent';
 import BoardComponent from '../components/BoardComponent';
 import TradeHistoryComponent from '../components/TradeHistoryComponent';
 import AlertHistoryComponent from '../components/AlertHistoryComponent';
+import BacktestModal from '../components/BacktestModal';
 import { toast } from 'sonner';
 import {
   Play,
@@ -160,6 +161,15 @@ export default function Home() {
 
         {/* 右側：コントロール */}
         <div className="flex items-center space-x-3">
+          {/* バックテストモーダル */}
+          {marketState && (
+            <BacktestModal
+              candles={marketState.candles}
+              rsiUpper={rsiUpper}
+              rsiLower={rsiLower}
+            />
+          )}
+
           {/* 一時停止/再開 */}
           <button
             onClick={() => setIsEnabled(!isPaused)}
