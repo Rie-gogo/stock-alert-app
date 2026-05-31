@@ -203,8 +203,8 @@ export default function Home() {
         <div className="xl:col-span-9 flex flex-col space-y-4">
           {/* 上部3カラム構成：チャート(60%) ＋ 板情報(20%) ＋ 歩み値(20%) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            {/* チャートコンポーネント (7/12) */}
-            <div className="lg:col-span-7 flex flex-col bg-card border border-border rounded-lg p-3 relative overflow-hidden">
+            {/* チャートコンポーネント (6/12) */}
+            <div className="lg:col-span-6 flex flex-col bg-card border border-border rounded-lg p-3 relative overflow-hidden">
               <div className="flex items-center justify-between mb-2 select-none">
                 <div className="flex items-center space-x-2">
                   <LineChart className="w-4 h-4 text-primary" />
@@ -232,8 +232,8 @@ export default function Home() {
               </div>
             </div>
 
-            {/* 板情報 (気配値) (2.5/12) */}
-            <div className="lg:col-span-2.5 flex flex-col bg-card border border-border rounded-lg p-3 overflow-hidden">
+            {/* 板情報 (気配値) (3/12) */}
+            <div className="lg:col-span-3 flex flex-col bg-card border border-border rounded-lg p-3 overflow-hidden">
               <div className="flex items-center space-x-2 mb-2 select-none">
                 <Grid3X3 className="w-4 h-4 text-emerald-400" />
                 <h2 className="text-xs font-bold text-foreground">リアルタイム板情報</h2>
@@ -249,8 +249,8 @@ export default function Home() {
               </div>
             </div>
 
-            {/* 歩み値 (タイム＆セールス) (2.5/12) */}
-            <div className="lg:col-span-2.5 flex flex-col bg-card border border-border rounded-lg p-3 overflow-hidden">
+            {/* 歩み値 (タイム＆セールス) (3/12) */}
+            <div className="lg:col-span-3 flex flex-col bg-card border border-border rounded-lg p-3 overflow-hidden">
               <div className="flex items-center space-x-2 mb-2 select-none">
                 <Activity className="w-4 h-4 text-destructive" />
                 <h2 className="text-xs font-bold text-foreground">リアルタイム歩み値</h2>
