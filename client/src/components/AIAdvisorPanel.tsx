@@ -132,19 +132,11 @@ export default function AIAdvisorPanel({
         bbMiddle: c.bbMiddle,
         bbLower: c.bbLower,
       })),
-      board: {
-        asks: ms.board.asks.map((a) => ({ price: a.price, volume: a.volume, type: a.type })),
-        bids: ms.board.bids.map((b) => ({ price: b.price, volume: b.volume, type: b.type })),
-        totalAskVolume: ms.board.totalAskVolume,
-        totalBidVolume: ms.board.totalBidVolume,
-      },
-      trades: ms.trades.slice(0, 20).map((t) => ({
-        time: t.time,
-        price: t.price,
-        volume: t.volume,
-        changeType: t.changeType,
-        sizeType: t.sizeType,
-      })),
+      // 板情報・歩み値はシミュレーションのため AI に送信しない
+      // Yahoo Finance で取得できないため、証券会社専用APIが必要
+      // 代わりにローソク足の実出来高を candles 内に含めて送信する
+      board: null,
+      trades: null,
       rsiUpper,
       rsiLower,
     });
@@ -282,7 +274,7 @@ export default function AIAdvisorPanel({
                 <div key={i} className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
               ))}
             </div>
-            <span className="text-[11px] text-muted-foreground">チャート・板・歩み値をAIが読み解いています...</span>
+            <span className="text-[11px] text-muted-foreground">実データ（ローソク足・出来高）をAIが読み解いています...</span>
           </div>
         )}
 

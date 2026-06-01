@@ -10,15 +10,16 @@ export interface AdvisorDiagnosis {
 }
 
 /**
- * テクニカル指標、大口歩み値、板需給から、現在の売買判断スコアを計算する
+ * テクニカル指標（MA・RSI・ボリンジャーバンド）と実出来高から、現在の売買判断スコアを計算する
+ * ※板情報・歩み値は証券会社専用APIが必要なため使用しない（シミュレーションのため判断に使うと誤ったシグナルになる）
  */
 export function diagnoseMarket(
   candles: CandleData[],
-  trades: TradeTick[],
+  _trades: TradeTick[],  // 未使用（下位互換性のためシグネチャを保持）
   rsiUpper: number,
   rsiLower: number,
-  askTotal: number = 0,
-  bidTotal: number = 0
+  _askTotal: number = 0,  // 未使用（同上）
+  _bidTotal: number = 0   // 未使用（同上）
 ): AdvisorDiagnosis {
   if (candles.length < 2) {
     return {
@@ -118,44 +119,33 @@ export function diagnoseMarket(
     }
   }
 
-  // 4. 板情報（需給バランス）の統合評価
-  if (askTotal > 0 && bidTotal > 0) {
-    const askRatio = askTotal / (askTotal + bidTotal);
-    if (askRatio >= 0.6) {
-      score -= 25; // 売り板が圧倒的に厚い場合は、買い評価を大幅減点
-      reasons.push(`📊 板需給：売り注文が圧倒的に優勢（売り板 ${(askRatio * 100).toFixed(0)}%）。上値が極めて重い状態です。`);
-    } else if (askRatio <= 0.4) {
-      score += 20; // 買い板が厚い場合
-      reasons.push(`📊 板需給：買い注文が優勢（買い板 ${((1 - askRatio) * 100).toFixed(0)}%）。下値が支えられています。`);
-    }
-  }
-
-  // 5. 大口の直近取引傾向 (歩み値の累積ネット出来高)
-  const recentTrades = trades.slice(0, 15);
-  let netLargeVolume = 0; // 大口のネット出来高 (買い株数 - 売り株数)
-  
-  recentTrades.forEach(t => {
-    if (t.sizeType === 'large' || t.sizeType === 'huge') {
-      if (t.changeType === 'up') {
-        netLargeVolume += t.volume;
-      } else if (t.changeType === 'down') {
-        netLargeVolume -= t.volume;
+  // 4. 出来高トレンド（Yahoo Finance 実データのローソク足 volume を使用）
+  // 直近 5 本の平均出来高 vs その前 5 本の平均出来高
+  if (candles.length >= 10) {
+    const recent5 = candles.slice(-5).map(c => c.volume).filter((v): v is number => typeof v === 'number');
+    const prev5 = candles.slice(-10, -5).map(c => c.volume).filter((v): v is number => typeof v === 'number');
+    if (recent5.length === 5 && prev5.length === 5) {
+      const recentAvg = recent5.reduce((a, b) => a + b, 0) / 5;
+      const prevAvg = prev5.reduce((a, b) => a + b, 0) / 5;
+      if (prevAvg > 0) {
+        const volRatio = recentAvg / prevAvg;
+        const priceUp = curr.close > prev.close;
+        if (volRatio >= 1.5 && priceUp) {
+          score += 15;
+          reasons.push(`📈 出来高：直近出来高が${volRatio.toFixed(1)}倍に急増し上昇。実需伴う買いと見られます。`);
+        } else if (volRatio >= 1.5 && !priceUp) {
+          score -= 20;
+          reasons.push(`⚠️ 出来高：出来高${volRatio.toFixed(1)}倍の下落。売り圧力が強いと見られます。`);
+        } else if (volRatio < 0.5) {
+          reasons.push(`🔇 出来高：出来高が低迷（${volRatio.toFixed(1)}倍）。静かなレンジ相場。`);
+        }
       }
     }
-  });
-
-  if (netLargeVolume > 5000) {
-    score += 15;
-    reasons.push(`🛒 歩み値：直近で「大口の純買い（+${netLargeVolume.toLocaleString()}株）」が流入。強い買い支えがあります。`);
-  } else if (netLargeVolume < -5000) {
-    score -= 25; // 大口の売り崩しは警戒度を上げる
-    reasons.push(`⚠️ 歩み値：直近で「大口の純売り崩し（${netLargeVolume.toLocaleString()}株）」が発生。急落への警戒が必要です。`);
   }
 
   // 【重要改善】絶対様子見ルール（落ちてくるナイフの強制排除）
-  // 強い下降トレンド中で、大口の圧倒的な純買いが入っていない場合は、強制的に買いスコアをマイナスにする
-  if (isStrongDownTrend && netLargeVolume < 10000) {
-    score = Math.min(-30, score); // 買い推奨（正の数）になるのを絶対に阻止
+  if (isStrongDownTrend) {
+    score = Math.min(-30, score); // 強い下降トレンド中は買い推奨（正の数）になるのを阻止
   }
 
   // スコア範囲を [-100, 100] に制限

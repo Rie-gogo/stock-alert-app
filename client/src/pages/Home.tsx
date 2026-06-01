@@ -3,8 +3,8 @@ import { Link } from 'wouter';
 import { useRealMarketData, REAL_STOCKS, RealStock } from '../hooks/useRealMarketData';
 import { AlertLog, CandleData } from '../types';
 import ChartComponent from '../components/ChartComponent';
-import BoardComponent from '../components/BoardComponent';
-import TradeHistoryComponent from '../components/TradeHistoryComponent';
+import VolumeAnalysisPanel from '../components/VolumeAnalysisPanel';
+import CandleDetailPanel from '../components/CandleDetailPanel';
 import AlertHistoryComponent from '../components/AlertHistoryComponent';
 import BacktestModal from '../components/BacktestModal';
 import AIAdvisorPanel from '../components/AIAdvisorPanel';
@@ -20,11 +20,9 @@ import {
   Settings2,
   Info,
   LineChart,
-  Grid3X3,
   History,
   Activity,
   BarChart2,
-  AlertTriangle,
   RefreshCw,
   WifiOff,
   Clock,
@@ -39,7 +37,6 @@ export default function Home() {
   const [selectedStock, setSelectedStock] = useState<RealStock>(REAL_STOCKS[0]);
   const [rsiUpper, setRsiUpper] = useState<number>(70);
   const [rsiLower, setRsiLower] = useState<number>(30);
-  const [largeVolume, setLargeVolume] = useState<number>(8000);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [alerts, setAlerts] = useState<AlertLog[]>([]);
   const [selectedCandle, setSelectedCandle] = useState<CandleData | null>(null);
@@ -73,7 +70,7 @@ export default function Home() {
     selectedStock,
     rsiThresholdUpper: rsiUpper,
     rsiThresholdLower: rsiLower,
-    largeTradeVolume: largeVolume,
+    largeTradeVolume: 8000, // 使用しないがフックシグネチャ互換性のため保持
     soundEnabled,
     onAlert: handleAlert,
   });
@@ -82,16 +79,17 @@ export default function Home() {
   const isPriceUp = marketState ? marketState.priceChange >= 0 : true;
   const priceColorClass = isPriceUp ? 'text-destructive' : 'text-emerald-500';
 
-  // ---- ルールベース診断 ----
+  // ---- ルールベース診断（実データのみ使用）----
   const marketDiagnosis = useMemo(() => {
     if (!marketState) return null;
+    // 診断関数側で板情報・歩み値はシグネチャだけ保持され未使用のため、空配列と 0 を渡す
     return diagnoseMarket(
       marketState.candles,
-      marketState.trades,
+      [],
       rsiUpper,
       rsiLower,
-      marketState.board.totalAskVolume,
-      marketState.board.totalBidVolume
+      0,
+      0
     );
   }, [marketState, rsiUpper, rsiLower]);
 
@@ -294,11 +292,11 @@ export default function Home() {
             />
           </div>
 
-          {/* チャート(6) ＋ 板情報(3) ＋ 歩み値(3) */}
+          {/* チャート(7) ＋ 出来高分析(2.5) ＋ ローソク足詳細(2.5) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
             {/* チャート */}
-            <div className="lg:col-span-6 flex flex-col bg-card border border-border rounded-lg p-3 relative overflow-hidden">
+            <div className="lg:col-span-7 flex flex-col bg-card border border-border rounded-lg p-3 relative overflow-hidden">
               <div className="flex items-center justify-between mb-2 select-none">
                 <div className="flex items-center space-x-2">
                   <LineChart className="w-4 h-4 text-primary" />
@@ -342,35 +340,41 @@ export default function Home() {
               </div>
             </div>
 
-            {/* 板情報 */}
+            {/* 出来高分析パネル（実データ）*/}
             <div className="lg:col-span-3 flex flex-col bg-card border border-border rounded-lg p-3 overflow-hidden">
               <div className="flex items-center space-x-2 mb-2 select-none">
-                <Grid3X3 className="w-4 h-4 text-emerald-400" />
-                <h2 className="text-xs font-bold text-foreground">板情報 (シミュレーション)</h2>
+                <BarChart2 className="w-4 h-4 text-emerald-400" />
+                <h2 className="text-xs font-bold text-foreground">
+                  出来高分析
+                  <span className="ml-1.5 text-[8px] text-emerald-400 font-mono">実データ</span>
+                </h2>
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-h-[400px]">
                 {marketState ? (
-                  <BoardComponent data={marketState.board} currentPrice={marketState.currentPrice} />
+                  <VolumeAnalysisPanel candles={marketState.candles} />
                 ) : (
                   <div className="h-full flex items-center justify-center text-muted-foreground text-xs font-mono">
-                    板情報ロード中...
+                    出来高データロード中...
                   </div>
                 )}
               </div>
             </div>
 
-            {/* 歩み値 */}
-            <div className="lg:col-span-3 flex flex-col bg-card border border-border rounded-lg p-3 overflow-hidden">
+            {/* ローソク足詳細パネル（実データ）*/}
+            <div className="lg:col-span-2 flex flex-col bg-card border border-border rounded-lg p-3 overflow-hidden">
               <div className="flex items-center space-x-2 mb-2 select-none">
                 <Activity className="w-4 h-4 text-destructive" />
-                <h2 className="text-xs font-bold text-foreground">歩み値 (シミュレーション)</h2>
+                <h2 className="text-xs font-bold text-foreground">
+                  OHLC
+                  <span className="ml-1.5 text-[8px] text-emerald-400 font-mono">実データ</span>
+                </h2>
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-h-[400px] overflow-hidden">
                 {marketState ? (
-                  <TradeHistoryComponent trades={marketState.trades} />
+                  <CandleDetailPanel candles={marketState.candles} />
                 ) : (
                   <div className="h-full flex items-center justify-center text-muted-foreground text-xs font-mono">
-                    歩み値ロード中...
+                    OHLCロード中...
                   </div>
                 )}
               </div>
@@ -440,33 +444,7 @@ export default function Home() {
 
               <hr className="border-border/50" />
 
-              {/* 大口監視 */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-muted-foreground flex items-center space-x-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-pink-400" />
-                    <span>大口判定の基準出来高</span>
-                  </label>
-                  <span className="text-xs font-mono font-bold text-pink-400">
-                    {largeVolume.toLocaleString()} 株以上
-                  </span>
-                </div>
-                <Slider
-                  defaultValue={[largeVolume]}
-                  max={15000}
-                  min={5000}
-                  step={500}
-                  onValueChange={(val) => setLargeVolume(val[0])}
-                  className="py-1"
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  1取引あたりの出来高がこの基準を超えると、歩み値上で大口(ピンク)としてマークされます。
-                </p>
-              </div>
-
-              <hr className="border-border/50" />
-
-              {/* データソース説明 */}
+              {/* データソース説明（架空データ排除完了を明示） */}
               <div className="bg-secondary/20 border border-border/50 rounded p-3 space-y-2">
                 <h4 className="text-[10px] font-bold text-foreground flex items-center">
                   <Info className="w-3.5 h-3.5 mr-1.5 text-primary" />
@@ -474,16 +452,22 @@ export default function Home() {
                 </h4>
                 <ul className="text-[9px] text-muted-foreground space-y-1.5 list-disc pl-3">
                   <li>
-                    <strong className="text-foreground">チャート</strong>: Yahoo Finance から1分足の実データを取得。1分ごとに自動更新。
+                    <strong className="text-emerald-400">【実データ】チャート</strong>: Yahoo Finance から1分足を取得。1分ごと自動更新。
                   </li>
                   <li>
-                    <strong className="text-foreground">板情報・歩み値</strong>: 現在値を基準にしたシミュレーション（Yahoo Finance では取得不可）。
+                    <strong className="text-emerald-400">【実データ】出来高分析</strong>: ローソク足の実出来高を使用。
                   </li>
                   <li>
-                    <strong className="text-foreground">シグナル検知</strong>: MA5/MA25クロス、RSI、ボリンジャーバンドを実データで計算。
+                    <strong className="text-emerald-400">【実データ】OHLC</strong>: 始値・高値・安値・終値を表表示。
                   </li>
                   <li>
-                    <strong className="text-foreground">架空取引</strong>: 毎平日 JST 15:30 に自動シミュレーション実行。実際の注文は行いません。
+                    <strong className="text-emerald-400">【実データ】シグナル検知</strong>: MA5/MA25クロス、RSI、ボリンジャーバンド・出来高を実データで計算。
+                  </li>
+                  <li>
+                    <strong className="text-yellow-400">【架空】取引</strong>: 毎平日 JST 16:00 に自動シミュレーション。実際の注文は行いません。
+                  </li>
+                  <li>
+                    板情報・歩み値は証券会社専用APIが必要なため本システムでは使用していません。
                   </li>
                 </ul>
               </div>
@@ -497,9 +481,9 @@ export default function Home() {
         <div>
           <span>PRO-TERMINAL v2.0.0</span>
           <span className="mx-2">|</span>
-          <span className="text-emerald-400">データソース: Yahoo Finance 実データ (1分足)</span>
+          <span className="text-emerald-400">データソース: Yahoo Finance 実データのみ (1分足 + 実出来高)</span>
           <span className="mx-2">|</span>
-          <span>板情報・歩み値: シミュレーション</span>
+          <span className="text-emerald-400">架空データ不使用</span>
         </div>
         <div className="flex items-center space-x-4">
           <span className="flex items-center">

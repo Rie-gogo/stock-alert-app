@@ -60,40 +60,7 @@ function formatCandlesForLLM(candles: z.infer<typeof CandleSchema>[]): string {
   return lines.join("\n");
 }
 
-/**
- * 板情報をテキスト形式に変換
- */
-function formatBoardForLLM(board: z.infer<typeof BoardDataSchema>): string {
-  const topAsks = board.asks.slice(0, 3);
-  const topBids = board.bids.slice(0, 3);
-  const askRatio = board.totalAskVolume / (board.totalAskVolume + board.totalBidVolume);
-
-  const askLines = topAsks.map((a) => `売${a.price.toFixed(0)}:${a.volume.toLocaleString()}`).join(" ");
-  const bidLines = topBids.map((b) => `買${b.price.toFixed(0)}:${b.volume.toLocaleString()}`).join(" ");
-
-  return `${askLines} | ${bidLines} | 売比率${(askRatio * 100).toFixed(0)}%`;
-}
-
-/**
- * 歩み値をテキスト形式に変換
- */
-function formatTradesForLLM(trades: z.infer<typeof TradeTickSchema>[]): string {
-  const recent = trades.slice(0, 10);
-  let netLargeVolume = 0;
-  recent.filter((t) => t.sizeType !== "normal").forEach((t) => {
-    if (t.changeType === "up") netLargeVolume += t.volume;
-    else if (t.changeType === "down") netLargeVolume -= t.volume;
-  });
-
-  const lines = recent.slice(0, 6).map((t) => {
-    const sizeLabel = t.sizeType === "huge" ? "超大口" : t.sizeType === "large" ? "大口" : "";
-    const dirLabel = t.changeType === "up" ? "↑" : t.changeType === "down" ? "↓" : "→";
-    return `${dirLabel}${t.price.toFixed(0)}(${t.volume.toLocaleString()}${sizeLabel})`;
-  }).join(" ");
-
-  const netLabel = netLargeVolume > 0 ? `大口純買+${netLargeVolume.toLocaleString()}` : `大口純売${netLargeVolume.toLocaleString()}`;
-  return `${lines} [${netLabel}]`;
-}
+// formatBoardForLLM・formatTradesForLLM は未使用（板情報・歩み値はシミュレーションのため AI に送らない）
 
 export const aiAnalysisRouter = router({
   /**
@@ -110,8 +77,9 @@ export const aiAnalysisRouter = router({
         priceChangePercent: z.number(),
         volume: z.number(),
         candles: z.array(CandleSchema),
-        board: BoardDataSchema,
-        trades: z.array(TradeTickSchema),
+        // 板情報・歩み値はシミュレーションのため null を許容（下位互換性）
+        board: BoardDataSchema.nullable().optional(),
+        trades: z.array(TradeTickSchema).nullable().optional(),
         rsiUpper: z.number().default(70),
         rsiLower: z.number().default(30),
       })
@@ -129,8 +97,8 @@ export const aiAnalysisRouter = router({
       }
 
       const candlesText = formatCandlesForLLM(input.candles);
-      const boardText = formatBoardForLLM(input.board);
-      const tradesText = formatTradesForLLM(input.trades);
+      // 板情報・歩み値は使用しない（証券会社専用APIが必要なためシミュレーションにしかならず、誤ったシグナルを生むリスク）
+      // 代わりにローソク足の実出来高を candlesText に含めて送信している
 
       const latestCandle = input.candles[input.candles.length - 1];
       const currentRsi = latestCandle?.rsi;
@@ -155,11 +123,10 @@ BUY=今すぐ買い, SELL=今すぐ売り/空売り, WAIT=様子見`;
       const userPrompt = `【${input.stockName}(${input.symbol})】現在値:${input.currentPrice.toFixed(0)} 前日比:${input.priceChange >= 0 ? "+" : ""}${input.priceChange.toFixed(0)}(${input.priceChangePercent.toFixed(1)}%) RSI:${currentRsi?.toFixed(0) ?? "?"} 5MA:${currentMa5?.toFixed(0) ?? "?"} 25MA:${currentMa25?.toFixed(0) ?? "?"}
 RSI閾値: 買われすぎ${input.rsiUpper} 売られすぎ${input.rsiLower}${pastPerformanceContext}
 
-【チャート直近15本】
+【チャート直近 15本】※量は実出来高（Yahoo Finance 実データ）
 ${candlesText}
 
-【板】${boardText}
-【歩み値】${tradesText}`;
+※板情報・歩み値は証券会社専用APIが必要なため本システムでは取得できず、テクニカル指標（MA・RSI・BB・出来高）のみを使用して判断してください。`;
 
       const response = await invokeLLM({
         messages: [
