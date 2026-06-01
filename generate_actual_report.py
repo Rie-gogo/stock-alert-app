@@ -158,14 +158,15 @@ def simulate_trading(symbol, name, timestamps, closes, initial_capital=3000000):
         
         # ゴールデンクロス（上昇転換）発生から5分（5ローソク足）以内は売りをロックする（ゴールデンクロス・プロテクション）
         is_within_gc_protection = False
-        for j in range(max(0, i - 5), i):
-            c_j = df.iloc[j]
-            p_j = df.iloc[j - 1] if j > 0 else None
-            if p_j is not None and 'ma5' in c_j and 'ma25' in c_j and 'ma5' in p_j and 'ma25' in p_j:
-                if p_j['ma5'] is not None and p_j['ma25'] is not None and c_j['ma5'] is not None and c_j['ma25'] is not None:
-                    if p_j['ma5'] <= p_j['ma25'] and c_j['ma5'] > c_j['ma25']:
-                        is_within_gc_protection = True
-                        break
+        for j in range(max(1, i - 5), i):
+            p_ma5 = ma5[j-1]
+            p_ma25 = ma25[j-1]
+            c_ma5 = ma5[j]
+            c_ma25 = ma25[j]
+            if p_ma5 is not None and p_ma25 is not None and c_ma5 is not None and c_ma25 is not None:
+                if p_ma5 <= p_ma25 and c_ma5 > c_ma25:
+                    is_within_gc_protection = True
+                    break
                         
         # 売りシグナル：デッドクロス、または(トレンドが強くない状態 ＆ ゴールデンクロス直後でない状態 での買われすぎ＋ボリバン上限)
         should_sell = is_dc or (is_overbought and is_bb_upper and not is_strong_uptrend and not is_within_gc_protection)

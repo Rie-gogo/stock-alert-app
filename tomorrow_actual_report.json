@@ -1,17 +1,120 @@
 {
-  "date": "2026-05-31",
-  "total_profit": 0,
+  "date": "2026-06-01",
+  "total_profit": -59466.0,
   "reports": [
     {
       "symbol": "6526",
       "name": "ソシオネクスト",
       "initial_capital": 3000000,
-      "final_balance": 3000000,
-      "profit_amount": 0,
-      "profit_rate": 0.0,
-      "win_rate": 0,
-      "trades_count": 0,
-      "trades": [],
+      "final_balance": 3012337.0,
+      "profit_amount": 12337.0,
+      "profit_rate": 0.004112333333333333,
+      "win_rate": 0.6666666666666666,
+      "trades_count": 6,
+      "trades": [
+        {
+          "time": "01:11",
+          "type": "buy",
+          "price": 2823.5,
+          "shares": 1041,
+          "total_amount": 2939263.5
+        },
+        {
+          "time": "01:41",
+          "type": "sell",
+          "price": 2847.0,
+          "shares": 1041,
+          "total_amount": 2963727.0,
+          "profit": 24463.5,
+          "profit_rate": 0.008323003364618381,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:58",
+          "type": "buy",
+          "price": 2849.0,
+          "shares": 1040,
+          "total_amount": 2962960.0
+        },
+        {
+          "time": "02:07",
+          "type": "sell",
+          "price": 2808.0,
+          "shares": 1040,
+          "total_amount": 2920320.0,
+          "profit": -42640.0,
+          "profit_rate": -0.014391014391014392,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "02:26",
+          "type": "buy",
+          "price": 2826.5,
+          "shares": 1033,
+          "total_amount": 2919774.5
+        },
+        {
+          "time": "03:53",
+          "type": "sell",
+          "price": 2843.0,
+          "shares": 1033,
+          "total_amount": 2936819.0,
+          "profit": 17044.5,
+          "profit_rate": 0.005837608349548912,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "03:57",
+          "type": "buy",
+          "price": 2866.5,
+          "shares": 1025,
+          "total_amount": 2938162.5
+        },
+        {
+          "time": "04:14",
+          "type": "sell",
+          "price": 2843.5,
+          "shares": 1025,
+          "total_amount": 2914587.5,
+          "profit": -23575.0,
+          "profit_rate": -0.008023722309436595,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:45",
+          "type": "buy",
+          "price": 2829.5,
+          "shares": 1030,
+          "total_amount": 2914385.0
+        },
+        {
+          "time": "05:15",
+          "type": "sell",
+          "price": 2853.5,
+          "shares": 1030,
+          "total_amount": 2939105.0,
+          "profit": 24720.0,
+          "profit_rate": 0.0084820639688991,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:33",
+          "type": "buy",
+          "price": 2861.0,
+          "shares": 1027,
+          "total_amount": 2938247.0
+        },
+        {
+          "time": "06:00",
+          "type": "sell",
+          "price": 2873.0,
+          "shares": 1027,
+          "total_amount": 2950571.0,
+          "profit": 12324.0,
+          "profit_rate": 0.004194337644180357,
+          "reason": "シグナル決済"
+        }
+      ],
       "loss_causes": [
         "特になし（利益獲得に成功）。"
       ],
@@ -23,29 +126,424 @@
       "symbol": "6920",
       "name": "レーザーテック",
       "initial_capital": 3000000,
-      "final_balance": 3000000,
-      "profit_amount": 0,
-      "profit_rate": 0.0,
-      "win_rate": 0,
-      "trades_count": 0,
-      "trades": [],
+      "final_balance": 2966770.0,
+      "profit_amount": -33230.0,
+      "profit_rate": -0.011076666666666667,
+      "win_rate": 0.25,
+      "trades_count": 12,
+      "trades": [
+        {
+          "time": "00:31",
+          "type": "buy",
+          "price": 38630.0,
+          "shares": 76,
+          "total_amount": 2935880.0
+        },
+        {
+          "time": "00:55",
+          "type": "sell",
+          "price": 38810.0,
+          "shares": 76,
+          "total_amount": 2949560.0,
+          "profit": 13680.0,
+          "profit_rate": 0.004659590991457417,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:16",
+          "type": "buy",
+          "price": 38920.0,
+          "shares": 75,
+          "total_amount": 2919000.0
+        },
+        {
+          "time": "01:31",
+          "type": "sell",
+          "price": 38800.0,
+          "shares": 75,
+          "total_amount": 2910000.0,
+          "profit": -9000.0,
+          "profit_rate": -0.003083247687564234,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:58",
+          "type": "buy",
+          "price": 38690.0,
+          "shares": 76,
+          "total_amount": 2940440.0
+        },
+        {
+          "time": "01:59",
+          "type": "sell",
+          "price": 38650.0,
+          "shares": 76,
+          "total_amount": 2937400.0,
+          "profit": -3040.0,
+          "profit_rate": -0.001033858878263117,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "02:22",
+          "type": "buy",
+          "price": 38570.0,
+          "shares": 76,
+          "total_amount": 2931320.0
+        },
+        {
+          "time": "03:32",
+          "type": "sell",
+          "price": 38530.0,
+          "shares": 76,
+          "total_amount": 2928280.0,
+          "profit": -3040.0,
+          "profit_rate": -0.0010370754472387865,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "03:42",
+          "type": "buy",
+          "price": 38630.0,
+          "shares": 76,
+          "total_amount": 2935880.0
+        },
+        {
+          "time": "03:46",
+          "type": "sell",
+          "price": 38500.0,
+          "shares": 76,
+          "total_amount": 2926000.0,
+          "profit": -9880.0,
+          "profit_rate": -0.003365260160497023,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:06",
+          "type": "buy",
+          "price": 38380.0,
+          "shares": 76,
+          "total_amount": 2916880.0
+        },
+        {
+          "time": "04:09",
+          "type": "sell",
+          "price": 38390.0,
+          "shares": 76,
+          "total_amount": 2917640.0,
+          "profit": 760.0,
+          "profit_rate": 0.0002605523710265763,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:16",
+          "type": "buy",
+          "price": 38370.0,
+          "shares": 76,
+          "total_amount": 2916120.0
+        },
+        {
+          "time": "04:17",
+          "type": "sell",
+          "price": 38370.0,
+          "shares": 76,
+          "total_amount": 2916120.0,
+          "profit": 0.0,
+          "profit_rate": 0.0,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:18",
+          "type": "buy",
+          "price": 38430.0,
+          "shares": 76,
+          "total_amount": 2920680.0
+        },
+        {
+          "time": "04:27",
+          "type": "sell",
+          "price": 38340.0,
+          "shares": 76,
+          "total_amount": 2913840.0,
+          "profit": -6840.0,
+          "profit_rate": -0.00234192037470726,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:40",
+          "type": "buy",
+          "price": 38420.0,
+          "shares": 76,
+          "total_amount": 2919920.0
+        },
+        {
+          "time": "04:57",
+          "type": "sell",
+          "price": 38300.0,
+          "shares": 76,
+          "total_amount": 2910800.0,
+          "profit": -9120.0,
+          "profit_rate": -0.0031233732431025507,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:07",
+          "type": "buy",
+          "price": 38420.0,
+          "shares": 75,
+          "total_amount": 2881500.0
+        },
+        {
+          "time": "05:19",
+          "type": "sell",
+          "price": 38340.0,
+          "shares": 75,
+          "total_amount": 2875500.0,
+          "profit": -6000.0,
+          "profit_rate": -0.002082248828735034,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:22",
+          "type": "buy",
+          "price": 38470.0,
+          "shares": 75,
+          "total_amount": 2885250.0
+        },
+        {
+          "time": "05:28",
+          "type": "sell",
+          "price": 38280.0,
+          "shares": 75,
+          "total_amount": 2871000.0,
+          "profit": -14250.0,
+          "profit_rate": -0.004938913439043411,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:38",
+          "type": "buy",
+          "price": 38380.0,
+          "shares": 75,
+          "total_amount": 2878500.0
+        },
+        {
+          "time": "06:09",
+          "type": "sell",
+          "price": 38560.0,
+          "shares": 75,
+          "total_amount": 2892000.0,
+          "profit": 13500.0,
+          "profit_rate": 0.004689942678478374,
+          "reason": "シグナル決済"
+        }
+      ],
       "loss_causes": [
-        "特になし（利益獲得に成功）。"
+        "急激なトレンド転換による一時的な含み損の拡大と、-1.5%損切りラインへの抵触。",
+        "もみ合い（レンジ）相場での小刻みなシグナルによる手数料・スプレッド負け。"
       ],
       "countermeasures": [
-        "現在の厳格化フィルタリングルールを維持し、利益を最大化する。"
+        "もみ合い相場を検知するため、ADXやボリンジャーバンドの幅（スクイーズ）による取引フィルターの追加。",
+        "ボラティリティに応じた損切り幅の動的調整（ATR指標の導入）。"
       ]
     },
     {
       "symbol": "6857",
       "name": "アドバンテスト",
       "initial_capital": 3000000,
-      "final_balance": 3000000,
-      "profit_amount": 0,
-      "profit_rate": 0.0,
-      "win_rate": 0,
-      "trades_count": 0,
-      "trades": [],
+      "final_balance": 3005130.0,
+      "profit_amount": 5130.0,
+      "profit_rate": 0.00171,
+      "win_rate": 0.45454545454545453,
+      "trades_count": 11,
+      "trades": [
+        {
+          "time": "00:46",
+          "type": "buy",
+          "price": 25760.0,
+          "shares": 114,
+          "total_amount": 2936640.0
+        },
+        {
+          "time": "00:52",
+          "type": "sell",
+          "price": 25665.0,
+          "shares": 114,
+          "total_amount": 2925810.0,
+          "profit": -10830.0,
+          "profit_rate": -0.003687888198757764,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:23",
+          "type": "buy",
+          "price": 25565.0,
+          "shares": 114,
+          "total_amount": 2914410.0
+        },
+        {
+          "time": "01:35",
+          "type": "sell",
+          "price": 25530.0,
+          "shares": 114,
+          "total_amount": 2910420.0,
+          "profit": -3990.0,
+          "profit_rate": -0.0013690592607079992,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:47",
+          "type": "buy",
+          "price": 25580.0,
+          "shares": 114,
+          "total_amount": 2916120.0
+        },
+        {
+          "time": "01:48",
+          "type": "sell",
+          "price": 25590.0,
+          "shares": 114,
+          "total_amount": 2917260.0,
+          "profit": 1140.0,
+          "profit_rate": 0.00039093041438623924,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:49",
+          "type": "buy",
+          "price": 25590.0,
+          "shares": 114,
+          "total_amount": 2917260.0
+        },
+        {
+          "time": "01:53",
+          "type": "sell",
+          "price": 25560.0,
+          "shares": 114,
+          "total_amount": 2913840.0,
+          "profit": -3420.0,
+          "profit_rate": -0.0011723329425556857,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:55",
+          "type": "buy",
+          "price": 25565.0,
+          "shares": 114,
+          "total_amount": 2914410.0
+        },
+        {
+          "time": "02:06",
+          "type": "sell",
+          "price": 25550.0,
+          "shares": 114,
+          "total_amount": 2912700.0,
+          "profit": -1710.0,
+          "profit_rate": -0.000586739683160571,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "02:22",
+          "type": "buy",
+          "price": 25565.0,
+          "shares": 114,
+          "total_amount": 2914410.0
+        },
+        {
+          "time": "03:30",
+          "type": "sell",
+          "price": 25745.0,
+          "shares": 114,
+          "total_amount": 2934930.0,
+          "profit": 20520.0,
+          "profit_rate": 0.0070408761979268535,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:04",
+          "type": "buy",
+          "price": 25740.0,
+          "shares": 114,
+          "total_amount": 2934360.0
+        },
+        {
+          "time": "04:14",
+          "type": "sell",
+          "price": 25650.0,
+          "shares": 114,
+          "total_amount": 2924100.0,
+          "profit": -10260.0,
+          "profit_rate": -0.0034965034965034965,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:18",
+          "type": "buy",
+          "price": 25710.0,
+          "shares": 114,
+          "total_amount": 2930940.0
+        },
+        {
+          "time": "04:30",
+          "type": "sell",
+          "price": 25805.0,
+          "shares": 114,
+          "total_amount": 2941770.0,
+          "profit": 10830.0,
+          "profit_rate": 0.003695060287825749,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:11",
+          "type": "buy",
+          "price": 25755.0,
+          "shares": 114,
+          "total_amount": 2936070.0
+        },
+        {
+          "time": "05:30",
+          "type": "sell",
+          "price": 25760.0,
+          "shares": 114,
+          "total_amount": 2936640.0,
+          "profit": 570.0,
+          "profit_rate": 0.00019413706076490002,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:37",
+          "type": "buy",
+          "price": 25785.0,
+          "shares": 114,
+          "total_amount": 2939490.0
+        },
+        {
+          "time": "05:55",
+          "type": "sell",
+          "price": 25805.0,
+          "shares": 114,
+          "total_amount": 2941770.0,
+          "profit": 2280.0,
+          "profit_rate": 0.0007756447547023463,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "06:08",
+          "type": "buy",
+          "price": 25925.0,
+          "shares": 113,
+          "total_amount": 2929525.0
+        },
+        {
+          "time": "06:08",
+          "type": "sell",
+          "price": 25925.0,
+          "shares": 113,
+          "total_amount": 2929525.0,
+          "profit": 0.0,
+          "profit_rate": 0.0,
+          "reason": "シグナル決済"
+        }
+      ],
       "loss_causes": [
         "特になし（利益獲得に成功）。"
       ],
@@ -57,29 +555,288 @@
       "symbol": "9107",
       "name": "川崎汽船",
       "initial_capital": 3000000,
-      "final_balance": 3000000,
-      "profit_amount": 0,
-      "profit_rate": 0.0,
-      "win_rate": 0,
-      "trades_count": 0,
-      "trades": [],
+      "final_balance": 2990322.5,
+      "profit_amount": -9677.5,
+      "profit_rate": -0.003225833333333333,
+      "win_rate": 0.25,
+      "trades_count": 8,
+      "trades": [
+        {
+          "time": "00:30",
+          "type": "buy",
+          "price": 2596.0,
+          "shares": 1132,
+          "total_amount": 2938672.0
+        },
+        {
+          "time": "00:48",
+          "type": "sell",
+          "price": 2587.0,
+          "shares": 1132,
+          "total_amount": 2928484.0,
+          "profit": -10188.0,
+          "profit_rate": -0.0034668721109399076,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:08",
+          "type": "buy",
+          "price": 2589.5,
+          "shares": 1131,
+          "total_amount": 2928724.5
+        },
+        {
+          "time": "01:14",
+          "type": "sell",
+          "price": 2601.0,
+          "shares": 1131,
+          "total_amount": 2941731.0,
+          "profit": 13006.5,
+          "profit_rate": 0.004441011778335586,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "02:08",
+          "type": "buy",
+          "price": 2584.0,
+          "shares": 1138,
+          "total_amount": 2940592.0
+        },
+        {
+          "time": "02:18",
+          "type": "sell",
+          "price": 2580.0,
+          "shares": 1138,
+          "total_amount": 2936040.0,
+          "profit": -4552.0,
+          "profit_rate": -0.0015479876160990713,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:20",
+          "type": "buy",
+          "price": 2568.5,
+          "shares": 1143,
+          "total_amount": 2935795.5
+        },
+        {
+          "time": "04:20",
+          "type": "sell",
+          "price": 2568.5,
+          "shares": 1143,
+          "total_amount": 2935795.5,
+          "profit": 0.0,
+          "profit_rate": 0.0,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:54",
+          "type": "buy",
+          "price": 2576.5,
+          "shares": 1140,
+          "total_amount": 2937210.0
+        },
+        {
+          "time": "04:54",
+          "type": "sell",
+          "price": 2576.5,
+          "shares": 1140,
+          "total_amount": 2937210.0,
+          "profit": 0.0,
+          "profit_rate": 0.0,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:36",
+          "type": "buy",
+          "price": 2577.0,
+          "shares": 1140,
+          "total_amount": 2937780.0
+        },
+        {
+          "time": "05:43",
+          "type": "sell",
+          "price": 2582.0,
+          "shares": 1140,
+          "total_amount": 2943480.0,
+          "profit": 5700.0,
+          "profit_rate": 0.0019402405898331393,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:54",
+          "type": "buy",
+          "price": 2572.0,
+          "shares": 1144,
+          "total_amount": 2942368.0
+        },
+        {
+          "time": "05:55",
+          "type": "sell",
+          "price": 2572.0,
+          "shares": 1144,
+          "total_amount": 2942368.0,
+          "profit": 0.0,
+          "profit_rate": 0.0,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "06:05",
+          "type": "buy",
+          "price": 2587.5,
+          "shares": 1137,
+          "total_amount": 2941987.5
+        },
+        {
+          "time": "06:24",
+          "type": "sell",
+          "price": 2575.5,
+          "shares": 1137,
+          "total_amount": 2928343.5,
+          "profit": -13644.0,
+          "profit_rate": -0.00463768115942029,
+          "reason": "シグナル決済"
+        }
+      ],
       "loss_causes": [
-        "特になし（利益獲得に成功）。"
+        "急激なトレンド転換による一時的な含み損の拡大と、-1.5%損切りラインへの抵触。",
+        "もみ合い（レンジ）相場での小刻みなシグナルによる手数料・スプレッド負け。"
       ],
       "countermeasures": [
-        "現在の厳格化フィルタリングルールを維持し、利益を最大化する。"
+        "もみ合い相場を検知するため、ADXやボリンジャーバンドの幅（スクイーズ）による取引フィルターの追加。",
+        "ボラティリティに応じた損切り幅の動的調整（ATR指標の導入）。"
       ]
     },
     {
       "symbol": "8306",
       "name": "三菱UFJ FG",
       "initial_capital": 3000000,
-      "final_balance": 3000000,
-      "profit_amount": 0,
-      "profit_rate": 0.0,
-      "win_rate": 0,
-      "trades_count": 0,
-      "trades": [],
+      "final_balance": 3011646.0,
+      "profit_amount": 11646.0,
+      "profit_rate": 0.003882,
+      "win_rate": 0.42857142857142855,
+      "trades_count": 7,
+      "trades": [
+        {
+          "time": "00:36",
+          "type": "buy",
+          "price": 3021.0,
+          "shares": 973,
+          "total_amount": 2939433.0
+        },
+        {
+          "time": "00:51",
+          "type": "sell",
+          "price": 3015.0,
+          "shares": 973,
+          "total_amount": 2933595.0,
+          "profit": -5838.0,
+          "profit_rate": -0.0019860973187686196,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:00",
+          "type": "buy",
+          "price": 3020.0,
+          "shares": 971,
+          "total_amount": 2932420.0
+        },
+        {
+          "time": "01:07",
+          "type": "sell",
+          "price": 3025.0,
+          "shares": 971,
+          "total_amount": 2937275.0,
+          "profit": 4855.0,
+          "profit_rate": 0.0016556291390728477,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "02:21",
+          "type": "buy",
+          "price": 3022.0,
+          "shares": 972,
+          "total_amount": 2937384.0
+        },
+        {
+          "time": "03:30",
+          "type": "sell",
+          "price": 3038.0,
+          "shares": 972,
+          "total_amount": 2952936.0,
+          "profit": 15552.0,
+          "profit_rate": 0.005294506949040371,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:13",
+          "type": "buy",
+          "price": 3024.0,
+          "shares": 976,
+          "total_amount": 2951424.0
+        },
+        {
+          "time": "04:26",
+          "type": "sell",
+          "price": 3020.0,
+          "shares": 976,
+          "total_amount": 2947520.0,
+          "profit": -3904.0,
+          "profit_rate": -0.0013227513227513227,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:07",
+          "type": "buy",
+          "price": 3017.0,
+          "shares": 977,
+          "total_amount": 2947609.0
+        },
+        {
+          "time": "05:21",
+          "type": "sell",
+          "price": 3023.0,
+          "shares": 977,
+          "total_amount": 2953471.0,
+          "profit": 5862.0,
+          "profit_rate": 0.0019887305270135896,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:44",
+          "type": "buy",
+          "price": 3023.0,
+          "shares": 977,
+          "total_amount": 2953471.0
+        },
+        {
+          "time": "06:00",
+          "type": "sell",
+          "price": 3022.0,
+          "shares": 977,
+          "total_amount": 2952494.0,
+          "profit": -977.0,
+          "profit_rate": -0.0003307972213033411,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "06:07",
+          "type": "buy",
+          "price": 3026.0,
+          "shares": 976,
+          "total_amount": 2953376.0
+        },
+        {
+          "time": "06:12",
+          "type": "sell",
+          "price": 3022.0,
+          "shares": 976,
+          "total_amount": 2949472.0,
+          "profit": -3904.0,
+          "profit_rate": -0.0013218770654329147,
+          "reason": "シグナル決済"
+        }
+      ],
       "loss_causes": [
         "特になし（利益獲得に成功）。"
       ],
@@ -91,12 +848,166 @@
       "symbol": "9984",
       "name": "ソフトバンクグループ",
       "initial_capital": 3000000,
-      "final_balance": 3000000,
-      "profit_amount": 0,
-      "profit_rate": 0.0,
-      "win_rate": 0,
-      "trades_count": 0,
-      "trades": [],
+      "final_balance": 3105071.0,
+      "profit_amount": 105071.0,
+      "profit_rate": 0.03502366666666667,
+      "win_rate": 0.5555555555555556,
+      "trades_count": 9,
+      "trades": [
+        {
+          "time": "00:42",
+          "type": "buy",
+          "price": 7907.0,
+          "shares": 371,
+          "total_amount": 2933497.0
+        },
+        {
+          "time": "01:33",
+          "type": "sell",
+          "price": 8108.0,
+          "shares": 371,
+          "total_amount": 3008068.0,
+          "profit": 74571.0,
+          "profit_rate": 0.025420513469078032,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:35",
+          "type": "buy",
+          "price": 8113.0,
+          "shares": 371,
+          "total_amount": 3009923.0
+        },
+        {
+          "time": "01:48",
+          "type": "sell",
+          "price": 8164.0,
+          "shares": 371,
+          "total_amount": 3028844.0,
+          "profit": 18921.0,
+          "profit_rate": 0.006286207321582645,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "02:27",
+          "type": "buy",
+          "price": 8246.0,
+          "shares": 367,
+          "total_amount": 3026282.0
+        },
+        {
+          "time": "03:46",
+          "type": "sell",
+          "price": 8274.0,
+          "shares": 367,
+          "total_amount": 3036558.0,
+          "profit": 10276.0,
+          "profit_rate": 0.003395585738539898,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:05",
+          "type": "buy",
+          "price": 8328.0,
+          "shares": 365,
+          "total_amount": 3039720.0
+        },
+        {
+          "time": "04:30",
+          "type": "sell",
+          "price": 8306.0,
+          "shares": 365,
+          "total_amount": 3031690.0,
+          "profit": -8030.0,
+          "profit_rate": -0.002641690682036503,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:38",
+          "type": "buy",
+          "price": 8362.0,
+          "shares": 362,
+          "total_amount": 3027044.0
+        },
+        {
+          "time": "05:04",
+          "type": "sell",
+          "price": 8469.0,
+          "shares": 362,
+          "total_amount": 3065778.0,
+          "profit": 38734.0,
+          "profit_rate": 0.012795981822530495,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:06",
+          "type": "buy",
+          "price": 8496.0,
+          "shares": 361,
+          "total_amount": 3067056.0
+        },
+        {
+          "time": "05:15",
+          "type": "sell",
+          "price": 8457.0,
+          "shares": 361,
+          "total_amount": 3052977.0,
+          "profit": -14079.0,
+          "profit_rate": -0.004590395480225989,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:20",
+          "type": "buy",
+          "price": 8491.0,
+          "shares": 360,
+          "total_amount": 3056760.0
+        },
+        {
+          "time": "05:28",
+          "type": "sell",
+          "price": 8427.0,
+          "shares": 360,
+          "total_amount": 3033720.0,
+          "profit": -23040.0,
+          "profit_rate": -0.007537392533270522,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:36",
+          "type": "buy",
+          "price": 8500.0,
+          "shares": 357,
+          "total_amount": 3034500.0
+        },
+        {
+          "time": "05:39",
+          "type": "sell",
+          "price": 8454.0,
+          "shares": 357,
+          "total_amount": 3018078.0,
+          "profit": -16422.0,
+          "profit_rate": -0.005411764705882353,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:44",
+          "type": "buy",
+          "price": 8494.0,
+          "shares": 355,
+          "total_amount": 3015370.0
+        },
+        {
+          "time": "06:00",
+          "type": "sell",
+          "price": 8562.0,
+          "shares": 355,
+          "total_amount": 3039510.0,
+          "profit": 24140.0,
+          "profit_rate": 0.008005651047798447,
+          "reason": "シグナル決済"
+        }
+      ],
       "loss_causes": [
         "特になし（利益獲得に成功）。"
       ],
@@ -108,68 +1019,607 @@
       "symbol": "8035",
       "name": "東京エレクトロン",
       "initial_capital": 3000000,
-      "final_balance": 3000000,
-      "profit_amount": 0,
-      "profit_rate": 0.0,
-      "win_rate": 0,
-      "trades_count": 0,
-      "trades": [],
+      "final_balance": 2925270.0,
+      "profit_amount": -74730.0,
+      "profit_rate": -0.02491,
+      "win_rate": 0.125,
+      "trades_count": 8,
+      "trades": [
+        {
+          "time": "00:44",
+          "type": "buy",
+          "price": 54180.0,
+          "shares": 54,
+          "total_amount": 2925720.0
+        },
+        {
+          "time": "01:01",
+          "type": "sell",
+          "price": 53900.0,
+          "shares": 54,
+          "total_amount": 2910600.0,
+          "profit": -15120.0,
+          "profit_rate": -0.00516795865633075,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:13",
+          "type": "buy",
+          "price": 54300.0,
+          "shares": 53,
+          "total_amount": 2877900.0
+        },
+        {
+          "time": "01:37",
+          "type": "sell",
+          "price": 54320.0,
+          "shares": 53,
+          "total_amount": 2878960.0,
+          "profit": 1060.0,
+          "profit_rate": 0.00036832412523020257,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "02:25",
+          "type": "buy",
+          "price": 53960.0,
+          "shares": 54,
+          "total_amount": 2913840.0
+        },
+        {
+          "time": "03:30",
+          "type": "sell",
+          "price": 53620.0,
+          "shares": 54,
+          "total_amount": 2895480.0,
+          "profit": -18360.0,
+          "profit_rate": -0.006300963676797628,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:03",
+          "type": "buy",
+          "price": 53490.0,
+          "shares": 54,
+          "total_amount": 2888460.0
+        },
+        {
+          "time": "04:15",
+          "type": "sell",
+          "price": 53410.0,
+          "shares": 54,
+          "total_amount": 2884140.0,
+          "profit": -4320.0,
+          "profit_rate": -0.0014956066554496167,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:19",
+          "type": "buy",
+          "price": 53640.0,
+          "shares": 54,
+          "total_amount": 2896560.0
+        },
+        {
+          "time": "04:28",
+          "type": "sell",
+          "price": 53530.0,
+          "shares": 54,
+          "total_amount": 2890620.0,
+          "profit": -5940.0,
+          "profit_rate": -0.0020507084265473526,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:39",
+          "type": "buy",
+          "price": 53690.0,
+          "shares": 53,
+          "total_amount": 2845570.0
+        },
+        {
+          "time": "04:47",
+          "type": "sell",
+          "price": 53480.0,
+          "shares": 53,
+          "total_amount": 2834440.0,
+          "profit": -11130.0,
+          "profit_rate": -0.003911342894393742,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:06",
+          "type": "buy",
+          "price": 53550.0,
+          "shares": 53,
+          "total_amount": 2838150.0
+        },
+        {
+          "time": "05:19",
+          "type": "sell",
+          "price": 53410.0,
+          "shares": 53,
+          "total_amount": 2830730.0,
+          "profit": -7420.0,
+          "profit_rate": -0.00261437908496732,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "06:08",
+          "type": "buy",
+          "price": 53260.0,
+          "shares": 54,
+          "total_amount": 2876040.0
+        },
+        {
+          "time": "06:16",
+          "type": "sell",
+          "price": 53010.0,
+          "shares": 54,
+          "total_amount": 2862540.0,
+          "profit": -13500.0,
+          "profit_rate": -0.004693954187007135,
+          "reason": "シグナル決済"
+        }
+      ],
       "loss_causes": [
-        "特になし（利益獲得に成功）。"
+        "急激なトレンド転換による一時的な含み損の拡大と、-1.5%損切りラインへの抵触。",
+        "もみ合い（レンジ）相場での小刻みなシグナルによる手数料・スプレッド負け。"
       ],
       "countermeasures": [
-        "現在の厳格化フィルタリングルールを維持し、利益を最大化する。"
+        "もみ合い相場を検知するため、ADXやボリンジャーバンドの幅（スクイーズ）による取引フィルターの追加。",
+        "ボラティリティに応じた損切り幅の動的調整（ATR指標の導入）。"
       ]
     },
     {
       "symbol": "7011",
       "name": "三菱重工業",
       "initial_capital": 3000000,
-      "final_balance": 3000000,
-      "profit_amount": 0,
-      "profit_rate": 0.0,
-      "win_rate": 0,
-      "trades_count": 0,
-      "trades": [],
+      "final_balance": 2951974.0,
+      "profit_amount": -48026.0,
+      "profit_rate": -0.016008666666666668,
+      "win_rate": 0.25,
+      "trades_count": 8,
+      "trades": [
+        {
+          "time": "01:22",
+          "type": "buy",
+          "price": 3682.0,
+          "shares": 798,
+          "total_amount": 2938236.0
+        },
+        {
+          "time": "01:30",
+          "type": "sell",
+          "price": 3668.0,
+          "shares": 798,
+          "total_amount": 2927064.0,
+          "profit": -11172.0,
+          "profit_rate": -0.0038022813688212928,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "02:13",
+          "type": "buy",
+          "price": 3655.0,
+          "shares": 801,
+          "total_amount": 2927655.0
+        },
+        {
+          "time": "03:30",
+          "type": "sell",
+          "price": 3632.0,
+          "shares": 801,
+          "total_amount": 2909232.0,
+          "profit": -18423.0,
+          "profit_rate": -0.006292749658002736,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:00",
+          "type": "buy",
+          "price": 3633.0,
+          "shares": 801,
+          "total_amount": 2910033.0
+        },
+        {
+          "time": "04:07",
+          "type": "sell",
+          "price": 3614.0,
+          "shares": 801,
+          "total_amount": 2894814.0,
+          "profit": -15219.0,
+          "profit_rate": -0.005229837599779796,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:14",
+          "type": "buy",
+          "price": 3627.0,
+          "shares": 798,
+          "total_amount": 2894346.0
+        },
+        {
+          "time": "04:17",
+          "type": "sell",
+          "price": 3621.0,
+          "shares": 798,
+          "total_amount": 2889558.0,
+          "profit": -4788.0,
+          "profit_rate": -0.0016542597187758478,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:25",
+          "type": "buy",
+          "price": 3625.0,
+          "shares": 797,
+          "total_amount": 2889125.0
+        },
+        {
+          "time": "04:28",
+          "type": "sell",
+          "price": 3618.0,
+          "shares": 797,
+          "total_amount": 2883546.0,
+          "profit": -5579.0,
+          "profit_rate": -0.0019310344827586207,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:34",
+          "type": "buy",
+          "price": 3627.0,
+          "shares": 795,
+          "total_amount": 2883465.0
+        },
+        {
+          "time": "04:50",
+          "type": "sell",
+          "price": 3622.0,
+          "shares": 795,
+          "total_amount": 2879490.0,
+          "profit": -3975.0,
+          "profit_rate": -0.0013785497656465398,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:21",
+          "type": "buy",
+          "price": 3621.0,
+          "shares": 795,
+          "total_amount": 2878695.0
+        },
+        {
+          "time": "05:44",
+          "type": "sell",
+          "price": 3632.0,
+          "shares": 795,
+          "total_amount": 2887440.0,
+          "profit": 8745.0,
+          "profit_rate": 0.0030378348522507597,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "06:06",
+          "type": "buy",
+          "price": 3633.0,
+          "shares": 795,
+          "total_amount": 2888235.0
+        },
+        {
+          "time": "15:00",
+          "type": "sell",
+          "price": 3636.0,
+          "shares": 795,
+          "total_amount": 2890620.0,
+          "profit": 2385.0,
+          "profit_rate": 0.0008257638315441783,
+          "reason": "大引け強制決済"
+        }
+      ],
       "loss_causes": [
-        "特になし（利益獲得に成功）。"
+        "急激なトレンド転換による一時的な含み損の拡大と、-1.5%損切りラインへの抵触。",
+        "もみ合い（レンジ）相場での小刻みなシグナルによる手数料・スプレッド負け。"
       ],
       "countermeasures": [
-        "現在の厳格化フィルタリングルールを維持し、利益を最大化する。"
+        "もみ合い相場を検知するため、ADXやボリンジャーバンドの幅（スクイーズ）による取引フィルターの追加。",
+        "ボラティリティに応じた損切り幅の動的調整（ATR指標の導入）。"
       ]
     },
     {
       "symbol": "4568",
       "name": "第一三共",
       "initial_capital": 3000000,
-      "final_balance": 3000000,
-      "profit_amount": 0,
-      "profit_rate": 0.0,
-      "win_rate": 0,
-      "trades_count": 0,
-      "trades": [],
+      "final_balance": 2997324.5,
+      "profit_amount": -2675.5,
+      "profit_rate": -0.0008918333333333333,
+      "win_rate": 0.3333333333333333,
+      "trades_count": 6,
+      "trades": [
+        {
+          "time": "00:36",
+          "type": "buy",
+          "price": 2661.0,
+          "shares": 1104,
+          "total_amount": 2937744.0
+        },
+        {
+          "time": "00:45",
+          "type": "sell",
+          "price": 2657.0,
+          "shares": 1104,
+          "total_amount": 2933328.0,
+          "profit": -4416.0,
+          "profit_rate": -0.001503194287861706,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:49",
+          "type": "buy",
+          "price": 2633.5,
+          "shares": 1114,
+          "total_amount": 2933719.0
+        },
+        {
+          "time": "02:04",
+          "type": "sell",
+          "price": 2626.0,
+          "shares": 1114,
+          "total_amount": 2925364.0,
+          "profit": -8355.0,
+          "profit_rate": -0.0028479210176571104,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:04",
+          "type": "buy",
+          "price": 2610.5,
+          "shares": 1121,
+          "total_amount": 2926370.5
+        },
+        {
+          "time": "04:35",
+          "type": "sell",
+          "price": 2620.0,
+          "shares": 1121,
+          "total_amount": 2937020.0,
+          "profit": 10649.5,
+          "profit_rate": 0.003639149588201494,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:29",
+          "type": "buy",
+          "price": 2611.5,
+          "shares": 1124,
+          "total_amount": 2935326.0
+        },
+        {
+          "time": "05:33",
+          "type": "sell",
+          "price": 2610.5,
+          "shares": 1124,
+          "total_amount": 2934202.0,
+          "profit": -1124.0,
+          "profit_rate": -0.0003829216925138809,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:36",
+          "type": "buy",
+          "price": 2612.0,
+          "shares": 1124,
+          "total_amount": 2935888.0
+        },
+        {
+          "time": "05:42",
+          "type": "sell",
+          "price": 2616.5,
+          "shares": 1124,
+          "total_amount": 2940946.0,
+          "profit": 5058.0,
+          "profit_rate": 0.0017228177641653904,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "06:07",
+          "type": "buy",
+          "price": 2620.0,
+          "shares": 1122,
+          "total_amount": 2939640.0
+        },
+        {
+          "time": "06:21",
+          "type": "sell",
+          "price": 2616.0,
+          "shares": 1122,
+          "total_amount": 2935152.0,
+          "profit": -4488.0,
+          "profit_rate": -0.0015267175572519084,
+          "reason": "シグナル決済"
+        }
+      ],
       "loss_causes": [
-        "特になし（利益獲得に成功）。"
+        "急激なトレンド転換による一時的な含み損の拡大と、-1.5%損切りラインへの抵触。",
+        "もみ合い（レンジ）相場での小刻みなシグナルによる手数料・スプレッド負け。"
       ],
       "countermeasures": [
-        "現在の厳格化フィルタリングルールを維持し、利益を最大化する。"
+        "もみ合い相場を検知するため、ADXやボリンジャーバンドの幅（スクイーズ）による取引フィルターの追加。",
+        "ボラティリティに応じた損切り幅の動的調整（ATR指標の導入）。"
       ]
     },
     {
       "symbol": "3778",
       "name": "さくらインターネット",
       "initial_capital": 3000000,
-      "final_balance": 3000000,
-      "profit_amount": 0,
-      "profit_rate": 0.0,
-      "win_rate": 0,
-      "trades_count": 0,
-      "trades": [],
+      "final_balance": 2974689.0,
+      "profit_amount": -25311.0,
+      "profit_rate": -0.008437,
+      "win_rate": 0.2222222222222222,
+      "trades_count": 9,
+      "trades": [
+        {
+          "time": "00:41",
+          "type": "buy",
+          "price": 3065.0,
+          "shares": 959,
+          "total_amount": 2939335.0
+        },
+        {
+          "time": "00:56",
+          "type": "sell",
+          "price": 3060.0,
+          "shares": 959,
+          "total_amount": 2934540.0,
+          "profit": -4795.0,
+          "profit_rate": -0.0016313213703099511,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:19",
+          "type": "buy",
+          "price": 3040.0,
+          "shares": 965,
+          "total_amount": 2933600.0
+        },
+        {
+          "time": "01:25",
+          "type": "sell",
+          "price": 3030.0,
+          "shares": 965,
+          "total_amount": 2923950.0,
+          "profit": -9650.0,
+          "profit_rate": -0.003289473684210526,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "01:55",
+          "type": "buy",
+          "price": 3015.0,
+          "shares": 970,
+          "total_amount": 2924550.0
+        },
+        {
+          "time": "01:59",
+          "type": "sell",
+          "price": 3010.0,
+          "shares": 970,
+          "total_amount": 2919700.0,
+          "profit": -4850.0,
+          "profit_rate": -0.001658374792703151,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "02:03",
+          "type": "buy",
+          "price": 3015.0,
+          "shares": 968,
+          "total_amount": 2918520.0
+        },
+        {
+          "time": "02:12",
+          "type": "sell",
+          "price": 3025.0,
+          "shares": 968,
+          "total_amount": 2928200.0,
+          "profit": 9680.0,
+          "profit_rate": 0.003316749585406302,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:18",
+          "type": "buy",
+          "price": 2977.0,
+          "shares": 984,
+          "total_amount": 2929368.0
+        },
+        {
+          "time": "04:28",
+          "type": "sell",
+          "price": 2965.0,
+          "shares": 984,
+          "total_amount": 2917560.0,
+          "profit": -11808.0,
+          "profit_rate": -0.004030903594222372,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "04:46",
+          "type": "buy",
+          "price": 2968.0,
+          "shares": 983,
+          "total_amount": 2917544.0
+        },
+        {
+          "time": "05:29",
+          "type": "sell",
+          "price": 2973.0,
+          "shares": 983,
+          "total_amount": 2922459.0,
+          "profit": 4915.0,
+          "profit_rate": 0.0016846361185983828,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:31",
+          "type": "buy",
+          "price": 2976.0,
+          "shares": 982,
+          "total_amount": 2922432.0
+        },
+        {
+          "time": "05:32",
+          "type": "sell",
+          "price": 2974.0,
+          "shares": 982,
+          "total_amount": 2920468.0,
+          "profit": -1964.0,
+          "profit_rate": -0.0006720430107526882,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "05:49",
+          "type": "buy",
+          "price": 2983.0,
+          "shares": 979,
+          "total_amount": 2920357.0
+        },
+        {
+          "time": "05:49",
+          "type": "sell",
+          "price": 2983.0,
+          "shares": 979,
+          "total_amount": 2920357.0,
+          "profit": 0.0,
+          "profit_rate": 0.0,
+          "reason": "シグナル決済"
+        },
+        {
+          "time": "06:08",
+          "type": "buy",
+          "price": 2989.0,
+          "shares": 977,
+          "total_amount": 2920253.0
+        },
+        {
+          "time": "06:12",
+          "type": "sell",
+          "price": 2982.0,
+          "shares": 977,
+          "total_amount": 2913414.0,
+          "profit": -6839.0,
+          "profit_rate": -0.00234192037470726,
+          "reason": "シグナル決済"
+        }
+      ],
       "loss_causes": [
-        "特になし（利益獲得に成功）。"
+        "急激なトレンド転換による一時的な含み損の拡大と、-1.5%損切りラインへの抵触。",
+        "もみ合い（レンジ）相場での小刻みなシグナルによる手数料・スプレッド負け。"
       ],
       "countermeasures": [
-        "現在の厳格化フィルタリングルールを維持し、利益を最大化する。"
+        "もみ合い相場を検知するため、ADXやボリンジャーバンドの幅（スクイーズ）による取引フィルターの追加。",
+        "ボラティリティに応じた損切り幅の動的調整（ATR指標の導入）。"
       ]
     }
   ]

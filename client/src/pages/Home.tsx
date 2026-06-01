@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { Link } from 'wouter';
 import { useRealtimeMarketData, DEMO_STOCKS } from '../hooks/useRealtimeMarketData';
 import { Stock, AlertLog, CandleData } from '../types';
 import ChartComponent from '../components/ChartComponent';
@@ -32,6 +33,8 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Home() {
+  // The userAuth hooks provides authentication state
+  // To implement login/logout functionality, simply call logout() or redirect to getLoginUrl()
   // アプリケーション設定ステート
   const [selectedStock, setSelectedStock] = useState<Stock>(DEMO_STOCKS[0]);
   const [rsiUpper, setRsiUpper] = useState<number>(70);
@@ -178,6 +181,22 @@ export default function Home() {
         <div className="flex items-center space-x-3">
           {/* デイリー検証レポート */}
           <DailyReportModal rsiUpper={rsiUpper} rsiLower={rsiLower} />
+
+          {/* レポート履歴ページへのリンク */}
+          <Link href="/reports">
+            <button className="flex items-center space-x-1 px-3 py-1 rounded text-xs font-bold transition-all duration-200 border bg-secondary/50 text-muted-foreground border-border/50 hover:bg-secondary hover:text-foreground">
+              <History className="w-3.5 h-3.5" />
+              <span>レポート履歴</span>
+            </button>
+          </Link>
+
+          {/* アルゴリズム設定ページへのリンク */}
+          <Link href="/algorithm">
+            <button className="flex items-center space-x-1 px-3 py-1 rounded text-xs font-bold transition-all duration-200 border bg-secondary/50 text-muted-foreground border-border/50 hover:bg-secondary hover:text-foreground">
+              <Settings2 className="w-3.5 h-3.5" />
+              <span>アルゴリズム</span>
+            </button>
+          </Link>
 
           {/* バックテストモーダル */}
           {marketState && (

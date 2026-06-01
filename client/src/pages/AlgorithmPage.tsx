@@ -1,0 +1,310 @@
+import React, { useState } from 'react';
+import { trpc } from '@/lib/trpc';
+import { Link } from 'wouter';
+import {
+  ArrowLeft,
+  Settings2,
+  History,
+  Bot,
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
+  Save,
+  Target,
+  Sliders,
+} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
+import { toast } from 'sonner';
+
+export default function AlgorithmPage() {
+  const { data: config, refetch: refetchConfig } = trpc.trading.getConfig.useQuery();
+  const { data: improvements, isLoading: improvementsLoading } = trpc.trading.getImprovements.useQuery({ limit: 30 });
+  const { data: stats } = trpc.trading.getStats.useQuery({ days: 30 });
+
+  const [localRsiUpper, setLocalRsiUpper] = useState<number | null>(null);
+  const [localRsiLower, setLocalRsiLower] = useState<number | null>(null);
+  const [localStopLoss, setLocalStopLoss] = useState<number | null>(null);
+
+  const updateConfigMutation = trpc.trading.updateConfig.useMutation({
+    onSuccess: () => {
+      toast.success('パラメータを更新しました');
+      refetchConfig();
+      setLocalRsiUpper(null);
+      setLocalRsiLower(null);
+      setLocalStopLoss(null);
+    },
+    onError: (e) => toast.error(`更新エラー: ${e.message}`),
+  });
+
+  const rsiUpper = localRsiUpper ?? config?.rsiUpper ?? 70;
+  const rsiLower = localRsiLower ?? config?.rsiLower ?? 30;
+  const stopLoss = localStopLoss ?? parseFloat(String(config?.stopLossPercent ?? '1.5'));
+
+  const hasChanges =
+    localRsiUpper !== null || localRsiLower !== null || localStopLoss !== null;
+
+  const handleSave = () => {
+    updateConfigMutation.mutate({
+      rsiUpper: localRsiUpper ?? undefined,
+      rsiLower: localRsiLower ?? undefined,
+      stopLossPercent: localStopLoss ?? undefined,
+    });
+  };
+
+  const currentWinRate = stats?.avgWinRate ?? 0;
+  const targetWinRate = 0.8;
+  const progressPercent = Math.min(100, (currentWinRate / targetWinRate) * 100);
+
+  return (
+    <div className="min-h-screen bg-background text-foreground font-sans">
+      {/* ヘッダー */}
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <Link href="/">
+            <button className="flex items-center space-x-1.5 text-muted-foreground hover:text-foreground transition-colors">
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-xs">ダッシュボードに戻る</span>
+            </button>
+          </Link>
+          <div className="w-px h-4 bg-border" />
+          <div className="flex items-center space-x-2">
+            <Settings2 className="w-4 h-4 text-primary" />
+            <h1 className="text-sm font-bold">アルゴリズム設定 & 改善履歴</h1>
+          </div>
+        </div>
+      </header>
+
+      <div className="p-4 grid grid-cols-1 xl:grid-cols-12 gap-4">
+        {/* 左側: 目標進捗 + パラメータ設定 */}
+        <div className="xl:col-span-4 space-y-4">
+          {/* 目標達成進捗 */}
+          <Card className="border-border bg-card/60">
+            <CardHeader className="py-2.5 px-3 border-b border-border/50">
+              <CardTitle className="text-xs font-bold flex items-center space-x-1.5">
+                <Target className="w-3.5 h-3.5 text-primary" />
+                <span>目標達成進捗（7月中旬実戦まで）</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="py-4 px-3 space-y-4">
+              {/* 勝率ゲージ */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] text-muted-foreground font-bold">直近30日平均勝率</span>
+                  <span className={`text-sm font-mono font-bold ${currentWinRate >= 0.8 ? 'text-destructive' : currentWinRate >= 0.6 ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                    {(currentWinRate * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="h-3 bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      currentWinRate >= 0.8 ? 'bg-destructive' : currentWinRate >= 0.6 ? 'bg-yellow-400' : 'bg-emerald-400'
+                    }`}
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-[9px] text-muted-foreground">0%</span>
+                  <span className="text-[9px] text-muted-foreground">目標: 80〜90%</span>
+                  <span className="text-[9px] text-muted-foreground">100%</span>
+                </div>
+              </div>
+
+              {/* マイルストーン */}
+              <div className="space-y-2">
+                {[
+                  { label: '初期段階', threshold: 0.5, desc: 'ランダム以上' },
+                  { label: '改善段階', threshold: 0.6, desc: '安定した利益' },
+                  { label: '良好段階', threshold: 0.7, desc: '実戦準備中' },
+                  { label: '目標達成', threshold: 0.8, desc: '実戦開始可能' },
+                  { label: '最終目標', threshold: 0.9, desc: '高勝率達成' },
+                ].map((milestone) => (
+                  <div key={milestone.threshold} className={`flex items-center space-x-2 p-1.5 rounded ${currentWinRate >= milestone.threshold ? 'bg-primary/10' : 'bg-secondary/20'}`}>
+                    <div className={`w-2 h-2 rounded-full ${currentWinRate >= milestone.threshold ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
+                    <div className="flex-1">
+                      <span className={`text-[10px] font-bold ${currentWinRate >= milestone.threshold ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {milestone.label}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground ml-2">({(milestone.threshold * 100).toFixed(0)}%以上)</span>
+                    </div>
+                    <span className="text-[9px] text-muted-foreground">{milestone.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* パラメータ設定 */}
+          <Card className="border-border bg-card/60">
+            <CardHeader className="py-2.5 px-3 border-b border-border/50">
+              <CardTitle className="text-xs font-bold flex items-center space-x-1.5">
+                <Sliders className="w-3.5 h-3.5 text-primary" />
+                <span>現在のアルゴリズムパラメータ</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="py-4 px-3 space-y-5">
+              {/* RSI上限 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-muted-foreground flex items-center space-x-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
+                    <span>RSI 買われすぎ閾値</span>
+                  </label>
+                  <span className="text-xs font-mono font-bold text-purple-400">{rsiUpper}% 以上</span>
+                </div>
+                <Slider
+                  value={[rsiUpper]}
+                  max={90}
+                  min={55}
+                  step={1}
+                  onValueChange={(val) => setLocalRsiUpper(val[0])}
+                  className="py-1"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  RSIがこの値を超えると売りシグナルを検知します
+                </p>
+              </div>
+
+              {/* RSI下限 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-muted-foreground flex items-center space-x-1.5">
+                    <TrendingDown className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>RSI 売られすぎ閾値</span>
+                  </label>
+                  <span className="text-xs font-mono font-bold text-emerald-400">{rsiLower}% 以下</span>
+                </div>
+                <Slider
+                  value={[rsiLower]}
+                  max={45}
+                  min={10}
+                  step={1}
+                  onValueChange={(val) => setLocalRsiLower(val[0])}
+                  className="py-1"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  RSIがこの値を下回ると買いシグナルを検知します
+                </p>
+              </div>
+
+              {/* 損切り率 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-muted-foreground flex items-center space-x-1.5">
+                    <Target className="w-3.5 h-3.5 text-red-400" />
+                    <span>損切り率</span>
+                  </label>
+                  <span className="text-xs font-mono font-bold text-red-400">{stopLoss.toFixed(1)}%</span>
+                </div>
+                <Slider
+                  value={[stopLoss * 10]}
+                  max={50}
+                  min={5}
+                  step={1}
+                  onValueChange={(val) => setLocalStopLoss(val[0] / 10)}
+                  className="py-1"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  買値からこの割合下落したら強制損切りします
+                </p>
+              </div>
+
+              {hasChanges && (
+                <Button size="sm" onClick={handleSave} disabled={updateConfigMutation.isPending} className="w-full text-xs">
+                  {updateConfigMutation.isPending ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5 mr-1" />
+                  )}
+                  変更を保存
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 右側: 改善履歴 */}
+        <div className="xl:col-span-8">
+          <Card className="border-border bg-card/60 h-full">
+            <CardHeader className="py-2.5 px-3 border-b border-border/50">
+              <CardTitle className="text-xs font-bold flex items-center space-x-1.5">
+                <History className="w-3.5 h-3.5 text-primary" />
+                <span>AIアルゴリズム改善履歴</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3">
+              {improvementsLoading ? (
+                <div className="text-center py-8 text-xs text-muted-foreground">読み込み中...</div>
+              ) : !improvements || improvements.length === 0 ? (
+                <div className="text-center py-12 space-y-3">
+                  <Bot className="w-10 h-10 text-muted-foreground mx-auto" />
+                  <p className="text-sm text-muted-foreground">まだ改善履歴がありません</p>
+                  <p className="text-xs text-muted-foreground">
+                    レポート詳細ページで「AIでアルゴリズムを改善する」ボタンを押すと、<br />
+                    AIが自動的にパラメータを最適化します
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                  {improvements.map((imp, idx) => {
+                    const rsiUpperChanged = imp.newRsiUpper !== imp.prevRsiUpper;
+                    const rsiLowerChanged = imp.newRsiLower !== imp.prevRsiLower;
+                    const stopLossChanged = imp.newStopLossPercent !== imp.prevStopLossPercent;
+                    const hasAnyChange = rsiUpperChanged || rsiLowerChanged || stopLossChanged;
+
+                    return (
+                      <div key={imp.id} className="border border-border/60 rounded-lg p-3 bg-card/40 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Bot className="w-3.5 h-3.5 text-primary" />
+                            <span className="text-[10px] font-bold text-foreground">
+                              改善 #{improvements.length - idx}
+                            </span>
+                            {!hasAnyChange && (
+                              <span className="text-[8px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded">変更なし</span>
+                            )}
+                          </div>
+                          <span className="text-[9px] text-muted-foreground font-mono">
+                            {new Date(imp.appliedAt).toLocaleString('ja-JP')}
+                          </span>
+                        </div>
+
+                        {/* パラメータ変更 */}
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { label: 'RSI上限', prev: imp.prevRsiUpper, next: imp.newRsiUpper, unit: '%', changed: rsiUpperChanged },
+                            { label: 'RSI下限', prev: imp.prevRsiLower, next: imp.newRsiLower, unit: '%', changed: rsiLowerChanged },
+                            { label: '損切り', prev: imp.prevStopLossPercent, next: imp.newStopLossPercent, unit: '%', changed: stopLossChanged },
+                          ].map((param) => (
+                            <div key={param.label} className={`p-2 rounded text-center ${param.changed ? 'bg-primary/10 border border-primary/20' : 'bg-secondary/20'}`}>
+                              <span className="text-[9px] text-muted-foreground block">{param.label}</span>
+                              <div className="flex items-center justify-center space-x-1 mt-0.5">
+                                <span className="text-[10px] font-mono text-muted-foreground">{param.prev}{param.unit}</span>
+                                {param.changed && (
+                                  <>
+                                    <span className="text-[8px] text-muted-foreground">→</span>
+                                    <span className="text-[10px] font-mono font-bold text-primary">{param.next}{param.unit}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* 改善理由 */}
+                        <p className="text-[10px] text-foreground leading-relaxed bg-secondary/20 p-2 rounded">
+                          {imp.improvementReason}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
