@@ -69,6 +69,7 @@ export default function AIAdvisorPanel({
 }: AIAdvisorPanelProps) {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextRefreshIn, setNextRefreshIn] = useState<number>(AUTO_REFRESH_INTERVAL / 1000);
   const lastRequestRef = useRef<number>(0);
@@ -85,21 +86,29 @@ export default function AIAdvisorPanel({
     onSuccess: (data) => {
       setResult(data as AnalysisResult);
       setIsAnalyzing(false);
+      setIsBackgroundRefreshing(false);
       setError(null);
     },
     onError: () => {
       setError('AI分析に失敗しました。自動的に再試行します。');
       setIsAnalyzing(false);
+      setIsBackgroundRefreshing(false);
     },
   });
 
-  const runAnalysis = useCallback((ms: MarketState) => {
+  const runAnalysis = useCallback((ms: MarketState, isBackground = false) => {
     const now = Date.now();
     // 最低8秒のクールダウン（連打防止）
     if (now - lastRequestRef.current < 8000) return;
     lastRequestRef.current = now;
 
-    setIsAnalyzing(true);
+    if (isBackground) {
+      // バックグラウンド更新：前の結果を表示したまま裏で読み込む
+      setIsBackgroundRefreshing(true);
+    } else {
+      // 初回または手動：ローディング表示
+      setIsAnalyzing(true);
+    }
     setError(null);
 
     analyzeMarket.mutate({
@@ -141,6 +150,10 @@ export default function AIAdvisorPanel({
     });
   }, [selectedStock, rsiUpper, rsiLower, analyzeMarket]);
 
+  const runBackgroundAnalysis = useCallback((ms: MarketState) => {
+    runAnalysis(ms, true);
+  }, [runAnalysis]);
+
   // 自動更新タイマーのセットアップ
   useEffect(() => {
     // 既存タイマーをクリア
@@ -150,16 +163,16 @@ export default function AIAdvisorPanel({
     // カウントダウンリセット
     setNextRefreshIn(AUTO_REFRESH_INTERVAL / 1000);
 
-    // 初回：marketStateが揃ったらすぐ分析
+    // 初回：marketStateが揃ったらすぐ分析（初回はローディング表示）
     if (marketStateRef.current) {
-      runAnalysis(marketStateRef.current);
+      runAnalysis(marketStateRef.current, false);
     }
 
-    // 30秒ごとに自動分析
+    // 30秒ごとに自動分析（バックグラウンド更新：前の結果を表示したまま）
     autoRefreshTimerRef.current = setInterval(() => {
       const ms = marketStateRef.current;
       if (ms) {
-        runAnalysis(ms);
+        runBackgroundAnalysis(ms);
         setNextRefreshIn(AUTO_REFRESH_INTERVAL / 1000);
       }
     }, AUTO_REFRESH_INTERVAL);
@@ -177,7 +190,7 @@ export default function AIAdvisorPanel({
       if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
     };
   // 銘柄またはRSI設定が変わったら再セットアップ
-  }, [selectedStock.symbol, rsiUpper, rsiLower, runAnalysis]);
+  }, [selectedStock.symbol, rsiUpper, rsiLower, runAnalysis, runBackgroundAnalysis]);
 
   // 手動で今すぐ分析
   const handleManualAnalyze = useCallback(() => {
@@ -229,10 +242,13 @@ export default function AIAdvisorPanel({
           </span>
         </div>
         <div className="flex items-center space-x-2">
-          {/* 次回更新カウントダウン */}
+          {/* 次回更新カウントダウン / バックグラウンド更新インジケーター */}
           {!isAnalyzing && (
-            <span className="text-[10px] text-muted-foreground font-mono">
-              次回更新: <span className="text-foreground font-bold">{nextRefreshIn}秒</span>
+            <span className="flex items-center space-x-1.5 text-[10px] text-muted-foreground font-mono">
+              {isBackgroundRefreshing && (
+                <RefreshCw className="w-3 h-3 animate-spin text-primary/60" />
+              )}
+              <span>次回更新: <span className="text-foreground font-bold">{nextRefreshIn}秒</span></span>
             </span>
           )}
           {/* 手動で今すぐ分析ボタン */}
@@ -258,7 +274,8 @@ export default function AIAdvisorPanel({
 
       <div className="p-3.5">
         {/* ===== AI分析結果エリア ===== */}
-        {isAnalyzing && (
+        {/* 初回ローディング（結果がまだない場合のみ全面ローディング表示） */}
+        {isAnalyzing && !result && (
           <div className="flex items-center justify-center py-5 space-x-3">
             <div className="flex space-x-1">
               {[0, 1, 2].map((i) => (
@@ -276,7 +293,8 @@ export default function AIAdvisorPanel({
           </div>
         )}
 
-        {result && !isAnalyzing && cfg && (
+        {/* 結果表示：バックグラウンド更新中でも前の結果を表示し続ける */}
+        {result && (!isAnalyzing || result) && cfg && (
           <div className="space-y-3">
             {/* ★ 結論バッジ（最も目立つ部分） */}
             <div className="flex items-center gap-3">
