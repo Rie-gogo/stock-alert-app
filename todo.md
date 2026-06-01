@@ -29,6 +29,14 @@
 - [x] server/simulation.test.ts - シミュレーションエンジンのユニットテスト（11テスト全通過）
 - [x] チェックポイント保存
 
+## Phase 6: 本物のAI分析エンジン実装
+- [x] server/routers/aiAnalysis.ts - LLMを使ったリアルタイムAI市場分析ルーター
+- [x] チャート・板情報・歩み値をテキスト化してLLMに渡す変換関数
+- [x] 過去のシミュレーション成績・改善提案をコンテキストとしてLLMに渡す
+- [x] client/src/components/AIAdvisorPanel.tsx - 新しいAIアドバイザーパネル（LLM搭載）
+- [x] Home.tsxのAdvisorPanelをAIAdvisorPanelに置換
+- [x] ルールベース診断（既存）とLLM分析を並列表示
+
 ## 今後の改善予定
 - [ ] 実際のデイトレ開始（7月中旬）に向けた最終パラメータ調整
 - [ ] 週次アルゴリズム改善の精度向上（金曜日の自動改善ロジック）

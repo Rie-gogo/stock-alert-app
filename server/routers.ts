@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { tradingRouter } from "./routers/trading";
+import { aiAnalysisRouter } from "./routers/aiAnalysis";
 
 export const appRouter = router({
   system: systemRouter,
@@ -19,6 +20,9 @@ export const appRouter = router({
 
   // トレーディングシミュレーション & レポート管理
   trading: tradingRouter,
+
+  // リアルタイムAI市場分析
+  aiAnalysis: aiAnalysisRouter,
 });
 
 export type AppRouter = typeof appRouter;

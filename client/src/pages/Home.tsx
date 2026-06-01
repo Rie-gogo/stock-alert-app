@@ -7,7 +7,7 @@ import BoardComponent from '../components/BoardComponent';
 import TradeHistoryComponent from '../components/TradeHistoryComponent';
 import AlertHistoryComponent from '../components/AlertHistoryComponent';
 import BacktestModal from '../components/BacktestModal';
-import AdvisorPanel from '../components/AdvisorPanel';
+import AIAdvisorPanel from '../components/AIAdvisorPanel';
 import DailyReportModal from '../components/DailyReportModal';
 import { diagnoseMarket } from '../lib/advisor';
 import { toast } from 'sonner';
@@ -248,12 +248,16 @@ export default function Home() {
       <main className="flex-1 p-4 grid grid-cols-1 xl:grid-cols-12 gap-4">
         {/* 左側＆中央：チャート、板情報、歩み値 (10カラム分) */}
         <div className="xl:col-span-9 flex flex-col space-y-4">
-          {/* AI売買シグナル診断アドバイザーパネルの追加 */}
-          {marketDiagnosis && (
-            <div className="w-full">
-              <AdvisorPanel diagnosis={marketDiagnosis} />
-            </div>
-          )}
+          {/* AI売買シグナル診断AIアドバイザーパネル（LLM搭載） */}
+          <div className="w-full">
+            <AIAdvisorPanel
+              marketState={marketState}
+              selectedStock={selectedStock}
+              rsiUpper={rsiUpper}
+              rsiLower={rsiLower}
+              ruleBasedDiagnosis={marketDiagnosis}
+            />
+          </div>
 
           {/* 上部3カラム構成：チャート(60%) ＋ 板情報(20%) ＋ 歩み値(20%) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
