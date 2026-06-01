@@ -163,7 +163,6 @@ export const stockDataRouter = router({
             region: "JP",
             interval: input.interval,
             range: input.range,
-            includeAdjustedClose: true,
           },
         });
       } catch (err) {

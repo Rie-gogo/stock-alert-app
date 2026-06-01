@@ -47,6 +47,7 @@ export async function dailySimulationHandler(req: Request, res: Response) {
     const stopLossPercent = parseFloat(String(config?.stopLossPercent ?? "1.5"));
 
     // ★ 実際のYahoo Financeデータを使ったシミュレーション実行
+    console.log(`[daily-simulation] Fetching real Yahoo Finance data for ${dateStr}...`);
     const simResult = await generateRealDailyReport(dateStr, rsiUpper, rsiLower, stopLossPercent);
 
     const dataSource = simResult.isRealData
@@ -54,6 +55,12 @@ export async function dailySimulationHandler(req: Request, res: Response) {
       : "架空データ（市場データ取得失敗のためフォールバック）";
 
     console.log(`[daily-simulation] Data source: ${dataSource}`);
+    console.log(`[daily-simulation] Real data: ${simResult.realDataCount}/10 stocks, isRealData=${simResult.isRealData}`);
+
+    // 実データが1銘柄も取得できなかった場合は警告ログを出す
+    if (!simResult.isRealData) {
+      console.error(`[daily-simulation] WARNING: All stocks fell back to simulated data! Check Yahoo Finance API.`);
+    }
 
     // AI分析サマリーの生成
     let aiSummary: string | undefined;

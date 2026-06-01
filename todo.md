@@ -64,8 +64,16 @@
 
 ## Phase 9: 実際のYahoo Financeデータでレポート生成
 - [x] server/realSimulation.ts - Yahoo Finance実データを使ったシミュレーションエンジン実装
-- [x] 対豈10銘柄のYahoo Financeティッカーシンボルマッピング（例: 9984 → 9984.T）
+- [x] 対象10銘柄のYahoo Financeティッカーシンボルマッピング（例: 9984 → 9984.T）
 - [x] 実データ取得失敗時のフォールバック（架空データで代替）
 - [x] scheduledHandlers.ts - 実データシミュレーションを呼び出すよう更新
 - [x] レポート履歴ページに「実データ/架空データ」の区別をバッジで明示表示（一覧・詳細両方）
 - [x] レポートに「実際の株価データを使用」と明記
+
+## Phase 10: 実データシミュレーション確実動作（バグ修正）
+- [x] 原因調査：6月1日レポートが架空データになった理由を特定（includeAdjustedClose:true のboolean型がAPIエラーを引き起こしていた）
+- [x] realSimulation.ts のYahoo Finance API呼び出しロジックを修正・強化（includeAdjustedCloseパラメータを除去）
+- [x] scheduledHandlers.ts のフォールバック条件を厳格化（実データ取得成否の詳細ログ追加）
+- [x] drizzle/schema.ts に isRealData フィールドを追加してDB管理（dataSource文字列でDB保存）
+- [x] 手動テスト：本日の実データで10銘柄シミュレーション実行・確認（7/10銘柄実データ、DB保存ID:1）
+- [x] テスト更新・チェックポイント保存（11テスト全通過）

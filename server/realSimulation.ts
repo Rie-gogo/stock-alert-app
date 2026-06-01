@@ -98,8 +98,28 @@ interface RealCandle {
 /**
  * Yahoo Finance から1分足データを取得してローソク足配列を返す
  * 失敗した場合は null を返す
+ * 最大3回リトライする
  */
-async function fetchRealCandles(ticker: string): Promise<RealCandle[] | null> {
+async function fetchRealCandles(ticker: string, maxRetries = 3): Promise<RealCandle[] | null> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await fetchRealCandlesOnce(ticker);
+      if (result !== null) return result;
+      // nullの場合はデータなしなのでリトライしない
+      return null;
+    } catch (err) {
+      if (attempt < maxRetries) {
+        console.warn(`[realSimulation] Retry ${attempt}/${maxRetries} for ${ticker}:`, err);
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+      } else {
+        console.warn(`[realSimulation] All retries failed for ${ticker}:`, err);
+      }
+    }
+  }
+  return null;
+}
+
+async function fetchRealCandlesOnce(ticker: string): Promise<RealCandle[] | null> {
   try {
     const rawData = await callDataApi("YahooFinance/get_stock_chart", {
       query: {
@@ -107,7 +127,6 @@ async function fetchRealCandles(ticker: string): Promise<RealCandle[] | null> {
         region: "JP",
         interval: "1m",
         range: "1d",
-        includeAdjustedClose: true,
       },
     });
 
@@ -375,19 +394,22 @@ export async function generateRealDailyReport(
 ) {
   console.log(`[realSimulation] Starting real data simulation for ${dateStr}`);
 
-  const stockReports = await Promise.all(
-    REAL_TARGET_STOCKS.map(stock =>
-      simulateStockReal(
-        stock.symbol,
-        stock.ticker,
-        stock.name,
-        3_000_000,
-        rsiUpper,
-        rsiLower,
-        stopLossPercent
-      )
-    )
-  );
+  // APIレート制限を避けるため、並列ではなく順次取得する
+  const stockReports: Awaited<ReturnType<typeof simulateStockReal>>[] = [];
+  for (const stock of REAL_TARGET_STOCKS) {
+    const result = await simulateStockReal(
+      stock.symbol,
+      stock.ticker,
+      stock.name,
+      3_000_000,
+      rsiUpper,
+      rsiLower,
+      stopLossPercent
+    );
+    stockReports.push(result);
+    // 各銘柄の取得後に少し待機してAPIレート制限を回避
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
 
   const totalInitialCapital = 3_000_000 * REAL_TARGET_STOCKS.length;
   const totalFinalBalance = stockReports.reduce((sum, r) => sum + r.finalBalance, 0);
