@@ -97,3 +97,14 @@
 - [x] realSimulation.ts にも空売りロジックを反映
 - [x] レポートの取引履歴に「空売り」「買い戻し」の種別を表示
 - [x] テスト更新・チェックポイント保存（11テスト全通過）
+
+## Phase 15: ホームページチャートをYahoo Finance実データに切り替え
+- [x] REAL_TARGET_STOCKSをホームページの銘柄リストとして使用（10銘柄）
+- [x] trpc.stockData.getStockChart を使ってYahoo Finance実データを取得するカスタムフックを作成
+- [x] 1分ごとの自動ポーリング（refetchInterval: 60_000）を設定
+- [x] 取得したデータをCandleData型に変換してChartComponentに渡す
+- [x] MarketState互換の形でcurrentPrice/priceChange/volumeを計算
+- [x] 板情報・歩み値は引き続きシミュレーション（Yahoo Financeでは取得不可）
+- [x] 市場時間外（土日・夜間）は前日データを表示し「市場時間外」バッジを表示
+- [x] 実データ取得中/失敗時のローディング・エラー表示
+- [x] AIAdvisorPanelに実データのmarketStateを渡す

@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Link } from 'wouter';
-import { useRealtimeMarketData, DEMO_STOCKS } from '../hooks/useRealtimeMarketData';
-import { Stock, AlertLog, CandleData } from '../types';
+import { useRealMarketData, REAL_STOCKS, RealStock } from '../hooks/useRealMarketData';
+import { AlertLog, CandleData } from '../types';
 import ChartComponent from '../components/ChartComponent';
 import BoardComponent from '../components/BoardComponent';
 import TradeHistoryComponent from '../components/TradeHistoryComponent';
@@ -12,8 +12,6 @@ import DailyReportModal from '../components/DailyReportModal';
 import { diagnoseMarket } from '../lib/advisor';
 import { toast } from 'sonner';
 import {
-  Play,
-  Pause,
   Volume2,
   VolumeX,
   TrendingUp,
@@ -27,41 +25,34 @@ import {
   Activity,
   BarChart2,
   AlertTriangle,
-  Zap,
+  RefreshCw,
+  WifiOff,
+  Clock,
+  Loader2,
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Home() {
-  // The userAuth hooks provides authentication state
-  // To implement login/logout functionality, simply call logout() or redirect to getLoginUrl()
-  // アプリケーション設定ステート
-  const [selectedStock, setSelectedStock] = useState<Stock>(DEMO_STOCKS[0]);
+  // ---- ステート ----
+  // 実銘柄リストから初期銘柄を選択
+  const [selectedStock, setSelectedStock] = useState<RealStock>(REAL_STOCKS[0]);
   const [rsiUpper, setRsiUpper] = useState<number>(70);
   const [rsiLower, setRsiLower] = useState<number>(30);
   const [largeVolume, setLargeVolume] = useState<number>(8000);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
-  
-  // アラート履歴ログステート
   const [alerts, setAlerts] = useState<AlertLog[]>([]);
-  
-  // チャート上の特定ローソク足ホバー/選択状態
   const [selectedCandle, setSelectedCandle] = useState<CandleData | null>(null);
 
-  // 新規アラート発生時のコールバック
+  // ---- アラートハンドラ ----
   const handleAlert = useCallback((alert: AlertLog) => {
-    // 1. アラート履歴の先頭に追加
-    setAlerts((prev) => [alert, ...prev].slice(0, 100)); // 最大100件保存
-
-    // 2. トースト通知の表示
+    setAlerts((prev) => [alert, ...prev].slice(0, 100));
     const isWarning = alert.signal === 'W';
     const isBuy = alert.signal === 'B';
-
     toast(alert.title, {
       description: alert.message,
       duration: 2500,
-      className: isWarning 
+      className: isWarning
         ? 'border-yellow-500/50 bg-yellow-950/90 text-yellow-200 font-sans'
         : isBuy
         ? 'border-destructive/50 bg-red-950/90 text-red-200 font-sans'
@@ -69,8 +60,16 @@ export default function Home() {
     });
   }, []);
 
-  // リアルタイムデータカスタムフックの呼び出し
-  const { marketState, isPaused, setIsEnabled } = useRealtimeMarketData({
+  // ---- Yahoo Finance 実データフック（1分ごと自動更新） ----
+  const {
+    marketState,
+    isPaused,
+    setIsEnabled,
+    isLoading,
+    error,
+    isMarketClosed,
+    lastUpdated,
+  } = useRealMarketData({
     selectedStock,
     rsiThresholdUpper: rsiUpper,
     rsiThresholdLower: rsiLower,
@@ -79,34 +78,41 @@ export default function Home() {
     onAlert: handleAlert,
   });
 
-  // アラート履歴ログクリック時のアクション (該当箇所にジャンプなど)
+  // ---- 表示スタイル計算 ----
+  const isPriceUp = marketState ? marketState.priceChange >= 0 : true;
+  const priceColorClass = isPriceUp ? 'text-destructive' : 'text-emerald-500';
+
+  // ---- ルールベース診断 ----
+  const marketDiagnosis = useMemo(() => {
+    if (!marketState) return null;
+    return diagnoseMarket(
+      marketState.candles,
+      marketState.trades,
+      rsiUpper,
+      rsiLower,
+      marketState.board.totalAskVolume,
+      marketState.board.totalBidVolume
+    );
+  }, [marketState, rsiUpper, rsiLower]);
+
+  // ---- アラートクリック ----
   const handleSelectAlert = (alert: AlertLog) => {
     toast.info(`アラート参照`, {
       description: `${alert.time} [${alert.symbol}] ${alert.title} (価格: ${alert.price.toFixed(1)})`,
     });
   };
 
-  // 1分足最新データの終値や前日比の表示スタイル
-  const isPriceUp = marketState ? marketState.priceChange >= 0 : true;
-  const priceColorClass = isPriceUp ? 'text-destructive' : 'text-emerald-500';
-  const priceBgClass = isPriceUp ? 'bg-destructive/10 border-destructive/20' : 'bg-emerald-500/10 border-emerald-500/20';
-
-  // リアルタイム売買シグナル診断の計算
-  const marketDiagnosis = marketState
-    ? diagnoseMarket(
-        marketState.candles,
-        marketState.trades,
-        rsiUpper,
-        rsiLower,
-        marketState.board.totalAskVolume,
-        marketState.board.totalBidVolume
-      )
-    : null;
+  // ---- 最終更新時刻の表示 ----
+  const lastUpdatedStr = lastUpdated
+    ? `${String(lastUpdated.getHours()).padStart(2, '0')}:${String(lastUpdated.getMinutes()).padStart(2, '0')}:${String(lastUpdated.getSeconds()).padStart(2, '0')}`
+    : '--:--:--';
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-primary/20">
-      {/* 1. ヘッダーパネル */}
+
+      {/* ===== ヘッダー ===== */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40 px-4 py-2 flex flex-wrap items-center justify-between gap-4">
+
         {/* 左側：ロゴ ＆ 銘柄選択 */}
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
@@ -118,72 +124,101 @@ export default function Home() {
                 リアルタイム株価アラート ＆ 分析
                 <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.2 rounded ml-2 font-mono border border-primary/30">PRO</span>
               </h1>
-              <p className="text-[10px] text-muted-foreground">秒単位リアルタイム計算 ＆ シグナル検知</p>
+              <p className="text-[10px] text-muted-foreground">
+                Yahoo Finance 実データ ＆ AI シグナル検知
+              </p>
             </div>
           </div>
 
-          {/* 銘柄セレクター */}
+          {/* 銘柄セレクター（実銘柄リスト） */}
           <div className="flex items-center space-x-1.5">
             <span className="text-[10px] text-muted-foreground font-bold">監視銘柄:</span>
             <select
               value={selectedStock.symbol}
               onChange={(e) => {
-                const stock = DEMO_STOCKS.find((s) => s.symbol === e.target.value);
+                const stock = REAL_STOCKS.find((s) => s.symbol === e.target.value);
                 if (stock) {
                   setSelectedStock(stock);
-                  setAlerts([]); // 銘柄切り替え時にアラートをリセット
+                  setAlerts([]);
+                  setSelectedCandle(null);
                 }
               }}
               className="bg-secondary/80 border border-border text-xs rounded px-2.5 py-1 font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             >
-              {DEMO_STOCKS.map((stock) => (
+              {REAL_STOCKS.map((stock) => (
                 <option key={stock.symbol} value={stock.symbol}>
-                  {stock.symbol} - {stock.name}
+                  {stock.symbol.replace('.T', '')} - {stock.name}
                 </option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* 中央：現在値簡易ボード */}
-        {marketState && (
-          <div className="flex items-center space-x-6 bg-secondary/30 border border-border/50 px-4 py-1 rounded font-mono">
-            <div className="flex flex-col">
-              <span className="text-[9px] text-muted-foreground font-bold">現在値</span>
-              <span className={`text-base font-extrabold tracking-tight ${priceColorClass}`}>
-                {marketState.currentPrice.toFixed(1)}
-              </span>
+        {/* 中央：現在値ボード */}
+        <div className="flex items-center space-x-4">
+          {/* 市場時間外バッジ */}
+          {isMarketClosed && (
+            <div className="flex items-center space-x-1 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold px-2 py-1 rounded">
+              <Clock className="w-3 h-3" />
+              <span>市場時間外</span>
             </div>
-            <div className="flex flex-col">
-              <span className="text-[9px] text-muted-foreground font-bold">前日比</span>
-              <span className={`text-xs font-bold flex items-center ${priceColorClass}`}>
-                {isPriceUp ? '+' : ''}
-                {marketState.priceChange.toFixed(1)} ({isPriceUp ? '+' : ''}
-                {marketState.priceChangePercent}%)
-              </span>
+          )}
+
+          {/* ローディング中 */}
+          {isLoading && !marketState && (
+            <div className="flex items-center space-x-1.5 text-muted-foreground text-xs font-mono">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>データ取得中...</span>
             </div>
-            <div className="flex flex-col hidden sm:flex">
-              <span className="text-[9px] text-muted-foreground font-bold">累計出来高</span>
-              <span className="text-xs font-bold text-yellow-500/90">
-                {marketState.volume.toLocaleString()} 株
-              </span>
+          )}
+
+          {/* エラー */}
+          {error && !marketState && (
+            <div className="flex items-center space-x-1.5 text-destructive text-xs font-mono">
+              <WifiOff className="w-3.5 h-3.5" />
+              <span>データ取得失敗</span>
             </div>
-            <div className="flex flex-col hidden md:flex">
-              <span className="text-[9px] text-muted-foreground font-bold">ステータス</span>
-              <span className="text-[10px] text-emerald-400 font-bold flex items-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping mr-1.5" />
-                市場接続中
-              </span>
+          )}
+
+          {/* 現在値表示 */}
+          {marketState && (
+            <div className="flex items-center space-x-5 bg-secondary/30 border border-border/50 px-4 py-1 rounded font-mono">
+              <div className="flex flex-col">
+                <span className="text-[9px] text-muted-foreground font-bold">現在値</span>
+                <span className={`text-base font-extrabold tracking-tight ${priceColorClass}`}>
+                  {marketState.currentPrice.toFixed(1)}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] text-muted-foreground font-bold">前日比</span>
+                <span className={`text-xs font-bold ${priceColorClass}`}>
+                  {isPriceUp ? '+' : ''}{marketState.priceChange.toFixed(1)}{' '}
+                  ({isPriceUp ? '+' : ''}{marketState.priceChangePercent}%)
+                </span>
+              </div>
+              <div className="flex-col hidden sm:flex">
+                <span className="text-[9px] text-muted-foreground font-bold">累計出来高</span>
+                <span className="text-xs font-bold text-yellow-500/90">
+                  {marketState.volume.toLocaleString()} 株
+                </span>
+              </div>
+              <div className="flex-col hidden md:flex">
+                <span className="text-[9px] text-muted-foreground font-bold">最終更新</span>
+                <span className="text-[10px] text-emerald-400 font-bold flex items-center">
+                  {isLoading
+                    ? <><Loader2 className="w-2.5 h-2.5 animate-spin mr-1" />更新中</>
+                    : <><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse" />{lastUpdatedStr}</>
+                  }
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* 右側：コントロール */}
         <div className="flex items-center space-x-3">
-          {/* デイリー検証レポート */}
           <DailyReportModal rsiUpper={rsiUpper} rsiLower={rsiLower} />
 
-          {/* レポート履歴ページへのリンク */}
           <Link href="/reports">
             <button className="flex items-center space-x-1 px-3 py-1 rounded text-xs font-bold transition-all duration-200 border bg-secondary/50 text-muted-foreground border-border/50 hover:bg-secondary hover:text-foreground">
               <History className="w-3.5 h-3.5" />
@@ -191,7 +226,6 @@ export default function Home() {
             </button>
           </Link>
 
-          {/* アルゴリズム設定ページへのリンク */}
           <Link href="/algorithm">
             <button className="flex items-center space-x-1 px-3 py-1 rounded text-xs font-bold transition-all duration-200 border bg-secondary/50 text-muted-foreground border-border/50 hover:bg-secondary hover:text-foreground">
               <Settings2 className="w-3.5 h-3.5" />
@@ -199,15 +233,14 @@ export default function Home() {
             </button>
           </Link>
 
-          {/* 実際の株価チャートページへのリンク */}
           <Link href="/chart">
             <button className="flex items-center space-x-1 px-3 py-1 rounded text-xs font-bold transition-all duration-200 border bg-primary/10 text-primary border-primary/30 hover:bg-primary/20">
               <BarChart2 className="w-3.5 h-3.5" />
-              <span>実際のチャート</span>
+              <span>詳細チャート</span>
             </button>
           </Link>
 
-          {/* バックテストモーダル */}
+          {/* バックテスト */}
           {marketState && (
             <BacktestModal
               candles={marketState.candles}
@@ -225,17 +258,8 @@ export default function Home() {
                 : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary/20'
             }`}
           >
-            {isPaused ? (
-              <>
-                <Play className="w-3.5 h-3.5 fill-current" />
-                <span>配信再開</span>
-              </>
-            ) : (
-              <>
-                <Pause className="w-3.5 h-3.5 fill-current" />
-                <span>配信停止</span>
-              </>
-            )}
+            <RefreshCw className={`w-3.5 h-3.5 ${isPaused ? '' : 'animate-spin'} [animation-duration:3s]`} />
+            <span>{isPaused ? '更新再開' : '自動更新中'}</span>
           </button>
 
           {/* 音声 ON/OFF */}
@@ -253,39 +277,58 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 2. メインダッシュボードレイアウト */}
+      {/* ===== メインダッシュボード ===== */}
       <main className="flex-1 p-4 grid grid-cols-1 xl:grid-cols-12 gap-4">
-        {/* 左側＆中央：チャート、板情報、歩み値 (10カラム分) */}
+
+        {/* 左側＆中央：チャート・板情報・歩み値 (9カラム) */}
         <div className="xl:col-span-9 flex flex-col space-y-4">
-          {/* AI売買シグナル診断AIアドバイザーパネル（LLM搭載） */}
+
+          {/* AI アドバイザーパネル */}
           <div className="w-full">
             <AIAdvisorPanel
               marketState={marketState}
-              selectedStock={selectedStock}
+              selectedStock={{ symbol: selectedStock.symbol, name: selectedStock.name, basePrice: selectedStock.basePrice }}
               rsiUpper={rsiUpper}
               rsiLower={rsiLower}
               ruleBasedDiagnosis={marketDiagnosis}
             />
           </div>
 
-          {/* 上部3カラム構成：チャート(60%) ＋ 板情報(20%) ＋ 歩み値(20%) */}
+          {/* チャート(6) ＋ 板情報(3) ＋ 歩み値(3) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            {/* チャートコンポーネント (6/12) */}
+
+            {/* チャート */}
             <div className="lg:col-span-6 flex flex-col bg-card border border-border rounded-lg p-3 relative overflow-hidden">
               <div className="flex items-center justify-between mb-2 select-none">
                 <div className="flex items-center space-x-2">
                   <LineChart className="w-4 h-4 text-primary" />
-                  <h2 className="text-xs font-bold text-foreground">リアルタイムチャート (1分足)</h2>
+                  <h2 className="text-xs font-bold text-foreground">
+                    リアルタイムチャート (1分足)
+                    <span className="ml-2 text-[9px] text-emerald-400 font-mono">
+                      Yahoo Finance 実データ
+                    </span>
+                  </h2>
                 </div>
                 {selectedCandle && (
                   <div className="text-[10px] font-mono text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded">
-                    選択中: <span className="text-foreground font-bold">{selectedCandle.time}</span> | 終値: <span className="text-foreground font-bold">{selectedCandle.close.toFixed(1)}</span>
+                    選択中: <span className="text-foreground font-bold">{selectedCandle.time}</span>{' '}
+                    | 終値: <span className="text-foreground font-bold">{selectedCandle.close.toFixed(1)}</span>
                   </div>
                 )}
               </div>
-              
               <div className="flex-1 min-h-[400px]">
-                {marketState ? (
+                {isLoading && !marketState ? (
+                  <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs font-mono space-y-2">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <span>Yahoo Finance からデータ取得中...</span>
+                  </div>
+                ) : error && !marketState ? (
+                  <div className="h-full flex flex-col items-center justify-center text-destructive text-xs font-mono space-y-2">
+                    <WifiOff className="w-6 h-6" />
+                    <span>データ取得に失敗しました</span>
+                    <span className="text-muted-foreground text-[10px]">市場時間外または通信エラーの可能性があります</span>
+                  </div>
+                ) : marketState ? (
                   <ChartComponent
                     data={marketState.candles}
                     selectedCandle={selectedCandle}
@@ -299,11 +342,11 @@ export default function Home() {
               </div>
             </div>
 
-            {/* 板情報 (気配値) (3/12) */}
+            {/* 板情報 */}
             <div className="lg:col-span-3 flex flex-col bg-card border border-border rounded-lg p-3 overflow-hidden">
               <div className="flex items-center space-x-2 mb-2 select-none">
                 <Grid3X3 className="w-4 h-4 text-emerald-400" />
-                <h2 className="text-xs font-bold text-foreground">リアルタイム板情報</h2>
+                <h2 className="text-xs font-bold text-foreground">板情報 (シミュレーション)</h2>
               </div>
               <div className="flex-1">
                 {marketState ? (
@@ -316,11 +359,11 @@ export default function Home() {
               </div>
             </div>
 
-            {/* 歩み値 (タイム＆セールス) (3/12) */}
+            {/* 歩み値 */}
             <div className="lg:col-span-3 flex flex-col bg-card border border-border rounded-lg p-3 overflow-hidden">
               <div className="flex items-center space-x-2 mb-2 select-none">
                 <Activity className="w-4 h-4 text-destructive" />
-                <h2 className="text-xs font-bold text-foreground">リアルタイム歩み値</h2>
+                <h2 className="text-xs font-bold text-foreground">歩み値 (シミュレーション)</h2>
               </div>
               <div className="flex-1">
                 {marketState ? (
@@ -334,13 +377,13 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 下部：アラートログパネル */}
+          {/* アラートログ */}
           <div className="flex-1">
             <AlertHistoryComponent alerts={alerts} onSelectAlert={handleSelectAlert} />
           </div>
         </div>
 
-        {/* 右側：アラート設定 ＆ パラメータチューニング (3カラム分) */}
+        {/* 右側：パラメータ設定 (3カラム) */}
         <div className="xl:col-span-3 flex flex-col space-y-4">
           <Card className="border-border bg-card/60 backdrop-blur-sm h-full">
             <CardHeader className="py-3 border-b border-border/50">
@@ -350,7 +393,8 @@ export default function Home() {
               </CardTitle>
             </CardHeader>
             <CardContent className="py-4 space-y-6">
-              {/* RSI 設定 */}
+
+              {/* RSI 買われすぎ */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-[11px] font-bold text-muted-foreground flex items-center space-x-1.5">
@@ -368,10 +412,11 @@ export default function Home() {
                   className="py-1"
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  RSIがこの数値を超えると、高値警戒として**売り(S)シグナル**を検知します。
+                  RSIがこの数値を超えると、高値警戒として売り(S)シグナルを検知します。
                 </p>
               </div>
 
+              {/* RSI 売られすぎ */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-[11px] font-bold text-muted-foreground flex items-center space-x-1.5">
@@ -389,13 +434,13 @@ export default function Home() {
                   className="py-1"
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  RSIがこの数値を下回ると、底値反発狙いとして**買い(B)シグナル**を検知します。
+                  RSIがこの数値を下回ると、底値反発狙いとして買い(B)シグナルを検知します。
                 </p>
               </div>
 
               <hr className="border-border/50" />
 
-              {/* 大口監視設定 */}
+              {/* 大口監視 */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-[11px] font-bold text-muted-foreground flex items-center space-x-1.5">
@@ -415,30 +460,30 @@ export default function Home() {
                   className="py-1"
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  1取引あたりの出来高がこの基準を超えると、歩み値上で**大口(ピンク)**、さらに1.25倍以上で**超大口(ゴールド)**としてマークされます。
+                  1取引あたりの出来高がこの基準を超えると、歩み値上で大口(ピンク)としてマークされます。
                 </p>
               </div>
 
               <hr className="border-border/50" />
 
-              {/* シグナルロジックの説明 */}
+              {/* データソース説明 */}
               <div className="bg-secondary/20 border border-border/50 rounded p-3 space-y-2">
                 <h4 className="text-[10px] font-bold text-foreground flex items-center">
                   <Info className="w-3.5 h-3.5 mr-1.5 text-primary" />
-                  自動売買シグナル検知ルール
+                  データソースについて
                 </h4>
                 <ul className="text-[9px] text-muted-foreground space-y-1.5 list-disc pl-3">
                   <li>
-                    <strong className="text-foreground">MAクロス</strong>: 短期5MAが長期25MAをゴールデンクロスで買い(B)、デッドクロスで売り(S)。
+                    <strong className="text-foreground">チャート</strong>: Yahoo Finance から1分足の実データを取得。1分ごとに自動更新。
                   </li>
                   <li>
-                    <strong className="text-foreground">ボリンジャーバンド</strong>: ±2σバンドタッチ時に逆張りの売買シグナルを自動プロット。
+                    <strong className="text-foreground">板情報・歩み値</strong>: 現在値を基準にしたシミュレーション（Yahoo Finance では取得不可）。
                   </li>
                   <li>
-                    <strong className="text-foreground">超大口売り崩し</strong>: 10,000株以上の売り約定が発生し、買い板が薄い場合に急落警告(WARN)。
+                    <strong className="text-foreground">シグナル検知</strong>: MA5/MA25クロス、RSI、ボリンジャーバンドを実データで計算。
                   </li>
                   <li>
-                    <strong className="text-foreground">大口買い上がり</strong>: 8,000株以上の買い約定が連続発生した場合に急騰期待(BUY)。
+                    <strong className="text-foreground">架空取引</strong>: 毎平日 JST 15:30 に自動シミュレーション実行。実際の注文は行いません。
                   </li>
                 </ul>
               </div>
@@ -447,19 +492,23 @@ export default function Home() {
         </div>
       </main>
 
-      {/* 3. フッターステータス */}
+      {/* ===== フッター ===== */}
       <footer className="border-t border-border bg-card/30 px-4 py-2 flex items-center justify-between text-[10px] text-muted-foreground font-mono select-none">
         <div>
-          <span>PRO-TERMINAL v1.4.0</span>
+          <span>PRO-TERMINAL v2.0.0</span>
           <span className="mx-2">|</span>
-          <span>データソース: 精巧シミュレーションエンジン (毎秒同期)</span>
+          <span className="text-emerald-400">データソース: Yahoo Finance 実データ (1分足)</span>
+          <span className="mx-2">|</span>
+          <span>板情報・歩み値: シミュレーション</span>
         </div>
         <div className="flex items-center space-x-4">
           <span className="flex items-center">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse" />
-            CPU負荷: 低
+            {isMarketClosed
+              ? <><Clock className="w-2.5 h-2.5 mr-1 text-yellow-400" /><span className="text-yellow-400">市場時間外</span></>
+              : <><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse" />市場接続中</>
+            }
           </span>
-          <span>LATENCY: 12ms</span>
+          <span>最終更新: {lastUpdatedStr}</span>
         </div>
       </footer>
     </div>

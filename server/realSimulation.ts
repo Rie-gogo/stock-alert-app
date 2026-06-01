@@ -5,20 +5,14 @@
  */
 import { callDataApi } from "./_core/dataApi";
 import type { StockSimResult, TradeRecord, SignalRecord } from "./simulation";
+import { TARGET_STOCKS } from "../shared/stocks";
 
-// 対象銘柄のYahoo Finance ティッカーマッピング
-export const REAL_TARGET_STOCKS = [
-  { symbol: "6526", ticker: "6526.T", name: "ソシオネクスト" },
-  { symbol: "6920", ticker: "6920.T", name: "レーザーテック" },
-  { symbol: "6857", ticker: "6857.T", name: "アドバンテスト" },
-  { symbol: "9107", ticker: "9107.T", name: "川崎汽船" },
-  { symbol: "8306", ticker: "8306.T", name: "三菱UFJ FG" },
-  { symbol: "9984", ticker: "9984.T", name: "ソフトバンクグループ" },
-  { symbol: "8035", ticker: "8035.T", name: "東京エレクトロン" },
-  { symbol: "7011", ticker: "7011.T", name: "三菱重工業" },
-  { symbol: "4568", ticker: "4568.T", name: "第一三共" },
-  { symbol: "3778", ticker: "3778.T", name: "さくらインターネット" },
-];
+// 共有定義からインポート（client/src/hooks/useRealMarketData.ts と同一ソース）
+export const REAL_TARGET_STOCKS = TARGET_STOCKS.map((s) => ({
+  symbol: s.symbol,
+  ticker: s.ticker,
+  name: s.name,
+}));
 
 // ---- テクニカル指標計算（stockData.tsと同一ロジック） ----
 
