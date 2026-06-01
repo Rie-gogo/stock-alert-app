@@ -407,18 +407,24 @@ export default function ReportHistory() {
                                   {signals!.map((sig: any, idx: number) => {
                                     const isBuy = sig.type === 'buy';
                                     const isWarn = sig.type === 'warn';
+                                    const isShort = sig.type === 'short';
+                                    const isCover = sig.type === 'cover';
+                                    const label = isBuy ? '▲BUY' : isWarn ? '◆WARN' : isShort ? '▼空売り' : isCover ? '▲買戻' : '▼SELL';
+                                    const colorClass = isBuy
+                                      ? 'bg-destructive/15 text-destructive border border-destructive/30'
+                                      : isWarn
+                                      ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
+                                      : isShort
+                                      ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                                      : isCover
+                                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                                      : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
                                     return (
                                       <tr key={idx} className="hover:bg-secondary/20 transition-colors">
                                         <td className="py-1.5 px-2 text-muted-foreground">{sig.time}</td>
                                         <td className="py-1.5 px-2">
-                                          <span className={`px-1.5 py-0.5 rounded font-bold text-[9px] ${
-                                            isBuy
-                                              ? 'bg-destructive/15 text-destructive border border-destructive/30'
-                                              : isWarn
-                                              ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
-                                              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                          }`}>
-                                            {isBuy ? '▲BUY' : isWarn ? '◆WARN' : '▼SELL'}
+                                          <span className={`px-1.5 py-0.5 rounded font-bold text-[9px] ${colorClass}`}>
+                                            {label}
                                           </span>
                                         </td>
                                         <td className="py-1.5 px-2 text-right font-bold text-foreground">
@@ -458,12 +464,22 @@ export default function ReportHistory() {
                         ) : (
                           (activeStockReport.trades as any[]).map((trade, idx) => {
                             const isBuy = trade.type === 'buy';
+                            const isShort = trade.type === 'short';
+                            const isCover = trade.type === 'cover';
+                            const tradeLabel = isBuy ? '買い' : isShort ? '空売り' : isCover ? '買戻し' : '売り';
+                            const tradeColor = isBuy
+                              ? 'bg-destructive/10 text-destructive'
+                              : isShort
+                              ? 'bg-purple-500/10 text-purple-400'
+                              : isCover
+                              ? 'bg-blue-500/10 text-blue-400'
+                              : 'bg-emerald-500/10 text-emerald-400';
                             return (
                               <div key={idx} className="flex items-center justify-between p-2 rounded bg-secondary/20 border border-border/30 text-[10px] font-mono">
                                 <div className="flex items-center space-x-3">
                                   <span className="text-muted-foreground">{trade.time}</span>
-                                  <span className={`px-1.5 py-0.5 rounded font-bold text-[9px] ${isBuy ? 'bg-destructive/10 text-destructive' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                                    {isBuy ? '買い' : '売り'}
+                                  <span className={`px-1.5 py-0.5 rounded font-bold text-[9px] ${tradeColor}`}>
+                                    {tradeLabel}
                                   </span>
                                   <span className="text-foreground">{trade.shares?.toLocaleString()} 株</span>
                                   <span className="text-muted-foreground">@{trade.price?.toFixed(1)} 円</span>

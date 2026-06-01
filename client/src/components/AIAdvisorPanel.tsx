@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { Sparkles, RefreshCw, AlertTriangle, Brain, TrendingUp, TrendingDown, Minus, Target, ShieldAlert } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Sparkles, RefreshCw, AlertTriangle, Brain, TrendingUp, TrendingDown, Minus, Target, ShieldAlert, Zap } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { MarketState, Stock } from '../types';
 import { AdvisorDiagnosis } from '../lib/advisor';
@@ -57,6 +57,9 @@ const VERDICT_CONFIG = {
   },
 };
 
+// 自動更新間隔（ミリ秒）
+const AUTO_REFRESH_INTERVAL = 30000; // 30秒
+
 export default function AIAdvisorPanel({
   marketState,
   selectedStock,
@@ -67,7 +70,16 @@ export default function AIAdvisorPanel({
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nextRefreshIn, setNextRefreshIn] = useState<number>(AUTO_REFRESH_INTERVAL / 1000);
   const lastRequestRef = useRef<number>(0);
+  const autoRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const marketStateRef = useRef<MarketState | null>(null);
+
+  // marketStateを最新の状態でrefに保持（タイマーコールバック内で使うため）
+  useEffect(() => {
+    marketStateRef.current = marketState;
+  }, [marketState]);
 
   const analyzeMarket = trpc.aiAnalysis.analyzeMarket.useMutation({
     onSuccess: (data) => {
@@ -75,15 +87,15 @@ export default function AIAdvisorPanel({
       setIsAnalyzing(false);
       setError(null);
     },
-    onError: (err) => {
-      setError('AI分析に失敗しました。再試行してください。');
+    onError: () => {
+      setError('AI分析に失敗しました。自動的に再試行します。');
       setIsAnalyzing(false);
     },
   });
 
-  const handleAnalyze = useCallback(() => {
-    if (!marketState || isAnalyzing) return;
+  const runAnalysis = useCallback((ms: MarketState) => {
     const now = Date.now();
+    // 最低8秒のクールダウン（連打防止）
     if (now - lastRequestRef.current < 8000) return;
     lastRequestRef.current = now;
 
@@ -93,11 +105,11 @@ export default function AIAdvisorPanel({
     analyzeMarket.mutate({
       symbol: selectedStock.symbol,
       stockName: selectedStock.name,
-      currentPrice: marketState.currentPrice,
-      priceChange: marketState.priceChange,
-      priceChangePercent: marketState.priceChangePercent,
-      volume: marketState.volume,
-      candles: marketState.candles.map((c) => ({
+      currentPrice: ms.currentPrice,
+      priceChange: ms.priceChange,
+      priceChangePercent: ms.priceChangePercent,
+      volume: ms.volume,
+      candles: ms.candles.map((c) => ({
         time: c.time,
         open: c.open,
         high: c.high,
@@ -112,12 +124,12 @@ export default function AIAdvisorPanel({
         bbLower: c.bbLower,
       })),
       board: {
-        asks: marketState.board.asks.map((a) => ({ price: a.price, volume: a.volume, type: a.type })),
-        bids: marketState.board.bids.map((b) => ({ price: b.price, volume: b.volume, type: b.type })),
-        totalAskVolume: marketState.board.totalAskVolume,
-        totalBidVolume: marketState.board.totalBidVolume,
+        asks: ms.board.asks.map((a) => ({ price: a.price, volume: a.volume, type: a.type })),
+        bids: ms.board.bids.map((b) => ({ price: b.price, volume: b.volume, type: b.type })),
+        totalAskVolume: ms.board.totalAskVolume,
+        totalBidVolume: ms.board.totalBidVolume,
       },
-      trades: marketState.trades.slice(0, 20).map((t) => ({
+      trades: ms.trades.slice(0, 20).map((t) => ({
         time: t.time,
         price: t.price,
         volume: t.volume,
@@ -127,7 +139,69 @@ export default function AIAdvisorPanel({
       rsiUpper,
       rsiLower,
     });
-  }, [marketState, isAnalyzing, selectedStock, rsiUpper, rsiLower, analyzeMarket]);
+  }, [selectedStock, rsiUpper, rsiLower, analyzeMarket]);
+
+  // 自動更新タイマーのセットアップ
+  useEffect(() => {
+    // 既存タイマーをクリア
+    if (autoRefreshTimerRef.current) clearInterval(autoRefreshTimerRef.current);
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+
+    // カウントダウンリセット
+    setNextRefreshIn(AUTO_REFRESH_INTERVAL / 1000);
+
+    // 初回：marketStateが揃ったらすぐ分析
+    if (marketStateRef.current) {
+      runAnalysis(marketStateRef.current);
+    }
+
+    // 30秒ごとに自動分析
+    autoRefreshTimerRef.current = setInterval(() => {
+      const ms = marketStateRef.current;
+      if (ms) {
+        runAnalysis(ms);
+        setNextRefreshIn(AUTO_REFRESH_INTERVAL / 1000);
+      }
+    }, AUTO_REFRESH_INTERVAL);
+
+    // 1秒ごとにカウントダウン更新
+    countdownTimerRef.current = setInterval(() => {
+      setNextRefreshIn((prev) => {
+        if (prev <= 1) return AUTO_REFRESH_INTERVAL / 1000;
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (autoRefreshTimerRef.current) clearInterval(autoRefreshTimerRef.current);
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    };
+  // 銘柄またはRSI設定が変わったら再セットアップ
+  }, [selectedStock.symbol, rsiUpper, rsiLower, runAnalysis]);
+
+  // 手動で今すぐ分析
+  const handleManualAnalyze = useCallback(() => {
+    const ms = marketStateRef.current;
+    if (!ms || isAnalyzing) return;
+    runAnalysis(ms);
+    // カウントダウンリセット
+    setNextRefreshIn(AUTO_REFRESH_INTERVAL / 1000);
+    if (autoRefreshTimerRef.current) clearInterval(autoRefreshTimerRef.current);
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    autoRefreshTimerRef.current = setInterval(() => {
+      const ms2 = marketStateRef.current;
+      if (ms2) {
+        runAnalysis(ms2);
+        setNextRefreshIn(AUTO_REFRESH_INTERVAL / 1000);
+      }
+    }, AUTO_REFRESH_INTERVAL);
+    countdownTimerRef.current = setInterval(() => {
+      setNextRefreshIn((prev) => {
+        if (prev <= 1) return AUTO_REFRESH_INTERVAL / 1000;
+        return prev - 1;
+      });
+    }, 1000);
+  }, [isAnalyzing, runAnalysis]);
 
   const cfg = result ? VERDICT_CONFIG[result.verdict] : null;
   const VerdictIcon = cfg?.icon ?? Brain;
@@ -148,24 +222,38 @@ export default function AIAdvisorPanel({
           <Brain className="w-4 h-4 text-primary" />
           <span className="text-xs font-bold text-foreground">AI売買シグナル診断</span>
           <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded border border-primary/30 font-mono">LLM搭載</span>
+          {/* 自動更新バッジ */}
+          <span className="flex items-center space-x-1 text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-mono">
+            <Zap className="w-2.5 h-2.5" />
+            <span>自動更新</span>
+          </span>
         </div>
-        <button
-          onClick={handleAnalyze}
-          disabled={!marketState || isAnalyzing}
-          className={`flex items-center space-x-1.5 px-3 py-1 rounded text-[11px] font-bold border transition-all duration-200 ${
-            isAnalyzing
-              ? 'bg-primary/10 text-primary border-primary/30 cursor-wait'
-              : !marketState
-              ? 'bg-muted text-muted-foreground border-border cursor-not-allowed'
-              : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 active:scale-95'
-          }`}
-        >
-          {isAnalyzing ? (
-            <><RefreshCw className="w-3 h-3 animate-spin" /><span>分析中...</span></>
-          ) : (
-            <><Sparkles className="w-3 h-3" /><span>AI分析を実行</span></>
+        <div className="flex items-center space-x-2">
+          {/* 次回更新カウントダウン */}
+          {!isAnalyzing && (
+            <span className="text-[10px] text-muted-foreground font-mono">
+              次回更新: <span className="text-foreground font-bold">{nextRefreshIn}秒</span>
+            </span>
           )}
-        </button>
+          {/* 手動で今すぐ分析ボタン */}
+          <button
+            onClick={handleManualAnalyze}
+            disabled={!marketState || isAnalyzing}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded text-[11px] font-bold border transition-all duration-200 ${
+              isAnalyzing
+                ? 'bg-primary/10 text-primary border-primary/30 cursor-wait'
+                : !marketState
+                ? 'bg-muted text-muted-foreground border-border cursor-not-allowed'
+                : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 active:scale-95'
+            }`}
+          >
+            {isAnalyzing ? (
+              <><RefreshCw className="w-3 h-3 animate-spin" /><span>分析中...</span></>
+            ) : (
+              <><Sparkles className="w-3 h-3" /><span>今すぐ分析</span></>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="p-3.5">
@@ -212,7 +300,7 @@ export default function AIAdvisorPanel({
                 </div>
               </div>
               <div className="ml-auto text-[10px] text-muted-foreground font-mono">
-                {new Date(result.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                最終更新: {new Date(result.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
             </div>
 
@@ -263,8 +351,8 @@ export default function AIAdvisorPanel({
           <div className="flex flex-col items-center justify-center py-3 space-y-2 text-center">
             <Brain className="w-7 h-7 text-muted-foreground/40" />
             <p className="text-[11px] text-muted-foreground">
-              「AI分析を実行」を押すと、<br />
-              <span className="font-bold text-foreground">買い / 売り / 様子見</span> を即座に判定します
+              データ読み込み中...<br />
+              <span className="font-bold text-foreground">自動的にAI分析が開始されます</span>
             </p>
           </div>
         )}

@@ -116,7 +116,7 @@ export type InsertStockReport = typeof stockReports.$inferInsert;
  */
 export interface SignalRecord {
   time: string;
-  type: "buy" | "sell" | "warn";
+  type: "buy" | "sell" | "warn" | "short" | "cover";
   price: number;
   ma5: number | null;
   ma25: number | null;
@@ -129,7 +129,7 @@ export interface SignalRecord {
  */
 export interface TradeRecord {
   time: string;
-  type: "buy" | "sell";
+  type: "buy" | "sell" | "short" | "cover";
   price: number;
   shares: number;
   totalAmount: number;
