@@ -231,16 +231,21 @@ export async function simulateStockReal(
     return { ...simulateStock(symbol, name, initialCapital, rsiUpper, rsiLower, stopLossPercent, dateSeed), isRealData: false };
   }
 
-  // シミュレーション実行
+    // シミュレーション実行
   const trades: TradeRecord[] = [];
   const signals: SignalRecord[] = [];
   let capital = initialCapital;
-  let positionShares = 0;
-  let positionPrice = 0;
+  // ロングポジション
+  let longShares = 0;
+  let longEntryPrice = 0;
+  // ショートポジション（空売り）
+  let shortShares = 0;
+  let shortEntryPrice = 0;
+
   let winCount = 0;
   let lossCount = 0;
 
-  const stopLossRatio = 1 - stopLossPercent / 100;
+  const stopLossRatio = stopLossPercent / 100;
 
   for (let i = 1; i < candles.length; i++) {
     const curr = candles[i];
@@ -252,138 +257,146 @@ export async function simulateStockReal(
       prev.ma5 === null || prev.ma25 === null
     ) continue;
 
+    const isGoldenCross = prev.ma5 <= prev.ma25 && curr.ma5 > curr.ma25;
+    const isDeadCross = prev.ma5 >= prev.ma25 && curr.ma5 < curr.ma25;
+    const isRsiOversold = curr.rsi <= rsiLower;
+    const isRsiOverbought = curr.rsi >= rsiUpper;
+    const isBbLower = curr.close <= curr.bbLower;
+    const isBbUpper = curr.close >= curr.bbUpper;
     const isStrongDown = curr.ma5 < curr.ma25 && curr.close < curr.ma5;
     const isStrongUp = curr.ma5 > curr.ma25 * 1.003 && curr.close >= curr.ma5;
 
-    // GCプロテクション（直近5本以内にGCがあれば売りシグナル抑制）
-    let gcProtection = false;
-    for (let j = Math.max(1, i - 4); j <= i; j++) {
-      const rj = candles[j], rjp = candles[j - 1];
-      if (rj.ma5 !== null && rj.ma25 !== null && rjp.ma5 !== null && rjp.ma25 !== null) {
-        if (rjp.ma5 <= rjp.ma25 && rj.ma5 > rj.ma25) {
-          gcProtection = true;
-          break;
-        }
-      }
-    }
+    // ============================================================
+    // ロング（買い）ポジション管理
+    // ============================================================
 
-    // 買いシグナル
-    const isGoldenCross = prev.ma5 <= prev.ma25 && curr.ma5 > curr.ma25;
-    const isRsiOversold = curr.rsi <= rsiLower;
-    const isBbLower = curr.close <= curr.bbLower;
-    const shouldBuy = !isStrongDown && (isGoldenCross || (isRsiOversold && isBbLower));
+    // ロングエントリー：ゴールデンクロス or RSI売られすぎ+BB下限
+    const shouldBuyLong = !isStrongDown && (isGoldenCross || (isRsiOversold && isBbLower));
 
-    if (positionShares === 0 && shouldBuy) {
-      const maxSpend = capital * 0.98;
+    if (longShares === 0 && shortShares === 0 && shouldBuyLong) {
+      const maxSpend = capital * 0.49; // 資金の半分でロング
       const shares = Math.floor(maxSpend / curr.close / 100) * 100; // 100株単位
       if (shares > 0) {
         const totalAmount = shares * curr.close;
-        positionShares = shares;
-        positionPrice = curr.close;
+        longShares = shares;
+        longEntryPrice = curr.close;
         capital -= totalAmount;
         const buyReason = isGoldenCross
           ? `ゴールデンクロス (MA5:${curr.ma5?.toFixed(1)} > MA25:${curr.ma25?.toFixed(1)})`
           : `RSI売られすぎ+BB下限 (RSI:${curr.rsi?.toFixed(1)}, BB下:${curr.bbLower?.toFixed(1)})`;
-        trades.push({
-          time: curr.time,
-          type: "buy",
-          price: curr.close,
-          shares,
-          totalAmount,
-        });
-        signals.push({
-          time: curr.time,
-          type: "buy",
-          price: curr.close,
-          ma5: curr.ma5,
-          ma25: curr.ma25,
-          rsi: curr.rsi,
-          reason: buyReason,
-        });
+        trades.push({ time: curr.time, type: "buy", price: curr.close, shares, totalAmount });
+        signals.push({ time: curr.time, type: "buy", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: buyReason });
       }
     }
 
-    // 売りシグナル
-    const isDeadCross = prev.ma5 >= prev.ma25 && curr.ma5 < curr.ma25;
-    const isRsiOverbought = curr.rsi >= rsiUpper;
-    const isBbUpper = curr.close >= curr.bbUpper;
-    const shouldSell =
-      isDeadCross ||
-      (isRsiOverbought && isBbUpper && !isStrongUp && !gcProtection);
-    const isStopLoss = positionShares > 0 && curr.close <= positionPrice * stopLossRatio;
-
-    if (positionShares > 0 && (shouldSell || isStopLoss)) {
-      const totalAmount = positionShares * curr.close;
-      const profit = totalAmount - positionShares * positionPrice;
-      const profitRate = (curr.close - positionPrice) / positionPrice;
+    // ロング損切り
+    if (longShares > 0 && curr.close <= longEntryPrice * (1 - stopLossRatio)) {
+      const totalAmount = longShares * curr.close;
+      const profit = totalAmount - longShares * longEntryPrice;
       capital += totalAmount;
+      lossCount++;
+      trades.push({ time: curr.time, type: "sell", price: curr.close, shares: longShares, totalAmount, profit, profitRate: profit / (longShares * longEntryPrice) });
+      signals.push({ time: curr.time, type: "sell", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: `損切り (${stopLossPercent}%下落, 入荷:${longEntryPrice.toFixed(1)}→現在:${curr.close.toFixed(1)})` });
+      longShares = 0;
+      longEntryPrice = 0;
+    }
 
-      if (profit > 0) winCount++;
-      else lossCount++;
+    // ロング利確・手仕舞い：デッドクロス or RSI買われすぎ+BB上限
+    const shouldSellLong = isDeadCross || (isRsiOverbought && isBbUpper && !isStrongUp);
 
-      const sellReason = isStopLoss
-        ? `損切り (${stopLossPercent}%下落, 入荷:${positionPrice.toFixed(1)}→現在:${curr.close.toFixed(1)})`
-        : isDeadCross
+    if (longShares > 0 && shouldSellLong) {
+      const totalAmount = longShares * curr.close;
+      const profit = totalAmount - longShares * longEntryPrice;
+      capital += totalAmount;
+      if (profit > 0) winCount++; else lossCount++;
+      const sellReason = isDeadCross
         ? `デッドクロス (MA5:${curr.ma5?.toFixed(1)} < MA25:${curr.ma25?.toFixed(1)})`
         : `RSI買われすぎ+BB上限 (RSI:${curr.rsi?.toFixed(1)}, BB上:${curr.bbUpper?.toFixed(1)})`;
+      trades.push({ time: curr.time, type: "sell", price: curr.close, shares: longShares, totalAmount, profit, profitRate: profit / (longShares * longEntryPrice) });
+      signals.push({ time: curr.time, type: "sell", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: sellReason });
+      longShares = 0;
+      longEntryPrice = 0;
+    }
 
-      trades.push({
-        time: curr.time,
-        type: "sell",
-        price: curr.close,
-        shares: positionShares,
-        totalAmount,
-        profit,
-        profitRate,
-      });
-      signals.push({
-        time: curr.time,
-        type: "sell",
-        price: curr.close,
-        ma5: curr.ma5,
-        ma25: curr.ma25,
-        rsi: curr.rsi,
-        reason: sellReason,
-      });
+    // ============================================================
+    // ショート（空売り）ポジション管理
+    // ============================================================
 
-      positionShares = 0;
-      positionPrice = 0;
+    // ショートエントリー：デッドクロス or RSI買われすぎ+BB上限（強い上昇トレンド中は見送り）
+    const shouldEnterShort = !isStrongUp && (isDeadCross || (isRsiOverbought && isBbUpper));
+
+    if (shortShares === 0 && longShares === 0 && shouldEnterShort) {
+      const maxSpend = capital * 0.49;
+      const shares = Math.floor(maxSpend / curr.close / 100) * 100; // 100株単位
+      if (shares > 0) {
+        const marginRequired = shares * curr.close;
+        shortShares = shares;
+        shortEntryPrice = curr.close;
+        capital -= marginRequired; // 証拠金を確保
+        const shortReason = isDeadCross
+          ? `空売りエントリー: デッドクロス (MA5:${curr.ma5?.toFixed(1)} < MA25:${curr.ma25?.toFixed(1)})`
+          : `空売りエントリー: RSI買われすぎ+BB上限 (RSI:${curr.rsi?.toFixed(1)})`;
+        trades.push({ time: curr.time, type: "short", price: curr.close, shares, totalAmount: marginRequired });
+        signals.push({ time: curr.time, type: "short", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: shortReason });
+      }
+    }
+
+    // ショート損切り：エントリー価格からstopLossPercent%上昇
+    if (shortShares > 0 && curr.close >= shortEntryPrice * (1 + stopLossRatio)) {
+      const profit = (shortEntryPrice - curr.close) * shortShares;
+      const marginReturn = shortShares * shortEntryPrice;
+      capital += marginReturn + profit;
+      lossCount++;
+      trades.push({ time: curr.time, type: "cover", price: curr.close, shares: shortShares, totalAmount: shortShares * curr.close, profit, profitRate: profit / (shortShares * shortEntryPrice) });
+      signals.push({ time: curr.time, type: "cover", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: `空売り損切り (エントリー:${shortEntryPrice.toFixed(1)} → ${curr.close.toFixed(1)})` });
+      shortShares = 0;
+      shortEntryPrice = 0;
+    }
+
+    // ショート利確・買い戻し：ゴールデンクロス or RSI売られすぎ+BB下限
+    const shouldCoverShort = isGoldenCross || (isRsiOversold && isBbLower && !isStrongDown);
+
+    if (shortShares > 0 && shouldCoverShort) {
+      const profit = (shortEntryPrice - curr.close) * shortShares;
+      const marginReturn = shortShares * shortEntryPrice;
+      capital += marginReturn + profit;
+      if (profit > 0) winCount++; else lossCount++;
+      const coverReason = isGoldenCross
+        ? `空売り買い戻し: ゴールデンクロス (MA5:${curr.ma5?.toFixed(1)} > MA25:${curr.ma25?.toFixed(1)})`
+        : `空売り買い戻し: RSI売られすぎ+BB下限 (RSI:${curr.rsi?.toFixed(1)})`;
+      trades.push({ time: curr.time, type: "cover", price: curr.close, shares: shortShares, totalAmount: shortShares * curr.close, profit, profitRate: profit / (shortShares * shortEntryPrice) });
+      signals.push({ time: curr.time, type: "cover", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: coverReason });
+      shortShares = 0;
+      shortEntryPrice = 0;
     }
   }
 
-  // 残ポジションを引け値で強制決済
-  if (positionShares > 0 && candles.length > 0) {
+  // 残ロングポジションを引け値で強制決済
+  if (longShares > 0 && candles.length > 0) {
     const lastCandle = candles[candles.length - 1];
-    const totalAmount = positionShares * lastCandle.close;
-    const profit = totalAmount - positionShares * positionPrice;
-    const profitRate = (lastCandle.close - positionPrice) / positionPrice;
+    const totalAmount = longShares * lastCandle.close;
+    const profit = totalAmount - longShares * longEntryPrice;
     capital += totalAmount;
-    if (profit > 0) winCount++;
-    else lossCount++;
-    trades.push({
-      time: lastCandle.time,
-      type: "sell",
-      price: lastCandle.close,
-      shares: positionShares,
-      totalAmount,
-      profit,
-      profitRate,
-    });
-    signals.push({
-      time: lastCandle.time,
-      type: "sell",
-      price: lastCandle.close,
-      ma5: lastCandle.ma5,
-      ma25: lastCandle.ma25,
-      rsi: lastCandle.rsi,
-      reason: `引け値強制決済 (入荷:${positionPrice.toFixed(1)}→引け:${lastCandle.close.toFixed(1)})`,
-    });
+    if (profit > 0) winCount++; else lossCount++;
+    trades.push({ time: lastCandle.time, type: "sell", price: lastCandle.close, shares: longShares, totalAmount, profit, profitRate: profit / (longShares * longEntryPrice) });
+    signals.push({ time: lastCandle.time, type: "sell", price: lastCandle.close, ma5: lastCandle.ma5, ma25: lastCandle.ma25, rsi: lastCandle.rsi, reason: `引け値強制決済(ロング) (入荷:${longEntryPrice.toFixed(1)}→引け:${lastCandle.close.toFixed(1)})` });
+  }
+
+  // 残ショートポジションを引け値で強制決済
+  if (shortShares > 0 && candles.length > 0) {
+    const lastCandle = candles[candles.length - 1];
+    const profit = (shortEntryPrice - lastCandle.close) * shortShares;
+    const marginReturn = shortShares * shortEntryPrice;
+    capital += marginReturn + profit;
+    if (profit > 0) winCount++; else lossCount++;
+    trades.push({ time: lastCandle.time, type: "cover", price: lastCandle.close, shares: shortShares, totalAmount: shortShares * lastCandle.close, profit, profitRate: profit / (shortShares * shortEntryPrice) });
+    signals.push({ time: lastCandle.time, type: "cover", price: lastCandle.close, ma5: lastCandle.ma5, ma25: lastCandle.ma25, rsi: lastCandle.rsi, reason: `引け値強制決済(ショート) (入荷:${shortEntryPrice.toFixed(1)}→引け:${lastCandle.close.toFixed(1)})` });
   }
 
   const finalBalance = capital;
   const profitAmount = finalBalance - initialCapital;
   const profitRate = profitAmount / initialCapital;
-  const tradesCount = trades.filter(t => t.type === "sell").length;
+  const tradesCount = trades.filter(t => t.type === "sell" || t.type === "cover").length;
   const winRate = tradesCount > 0 ? winCount / tradesCount : 0;
 
   // 損失原因と対策の動的生成
