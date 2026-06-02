@@ -136,6 +136,42 @@ function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLower = 30
   return result;
 }
 
+// ---- サーバーサイドキャッシュ ----
+// 同じ銘柄・同じパラメータのデータを一定時間キャッシュしてAPI呼び出し回数を削減
+type CacheEntry = {
+  data: unknown;
+  cachedAt: number;
+  ttlMs: number;
+};
+const stockCache = new Map<string, CacheEntry>();
+
+/** JST時刻で市場時間中（9:00〜15:30）かどうか判定 */
+function isMarketHours(): boolean {
+  const now = new Date();
+  const jstHour = (now.getUTCHours() + 9) % 24;
+  const jstMin = now.getUTCMinutes();
+  const totalMin = jstHour * 60 + jstMin;
+  // 9:00 = 540分, 15:30 = 930分
+  return totalMin >= 540 && totalMin <= 930;
+}
+
+function getCachedOrFetch(
+  cacheKey: string,
+  fetcher: () => Promise<unknown>
+): Promise<unknown> {
+  const entry = stockCache.get(cacheKey);
+  const now = Date.now();
+  if (entry && now - entry.cachedAt < entry.ttlMs) {
+    return Promise.resolve(entry.data);
+  }
+  return fetcher().then(data => {
+    // 市場時間中は5分キャッシュ、市場時間外は60分キャッシュ
+    const ttlMs = isMarketHours() ? 5 * 60 * 1000 : 60 * 60 * 1000;
+    stockCache.set(cacheKey, { data, cachedAt: now, ttlMs });
+    return data;
+  });
+}
+
 // ---- tRPCルーター ----
 export const stockDataRouter = router({
   /**
@@ -155,16 +191,20 @@ export const stockDataRouter = router({
       })
     )
     .query(async ({ input }) => {
+      // キャッシュキー: 銘柄コード+期間+間隔で一意に特定
+      const cacheKey = `${input.symbol}:${input.range}:${input.interval}`;
       let rawData: unknown;
       try {
-        rawData = await callDataApi("YahooFinance/get_stock_chart", {
-          query: {
-            symbol: input.symbol,
-            region: "JP",
-            interval: input.interval,
-            range: input.range,
-          },
-        });
+        rawData = await getCachedOrFetch(cacheKey, () =>
+          callDataApi("YahooFinance/get_stock_chart", {
+            query: {
+              symbol: input.symbol,
+              region: "JP",
+              interval: input.interval,
+              range: input.range,
+            },
+          })
+        );
       } catch (err) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",

@@ -178,7 +178,10 @@ export function useRealMarketData({
     }
   };
 
-  // Yahoo Finance からデータ取得（1分ごとポーリング）
+  // Yahoo Finance からデータ取得
+  // - 市場時間中（9:00〜15:30）: 5分ごと自動更新
+  // - 市場時間外（夜間・土日）: 自動更新停止（手動更新のみ）
+  const pollingInterval = isPaused || isMarketClosed ? false : (5 * 60_000);
   const { data, isLoading, error, dataUpdatedAt } = trpc.stockData.getStockChart.useQuery(
     {
       symbol: selectedStock.symbol,
@@ -188,11 +191,10 @@ export function useRealMarketData({
       rsiLower: rsiThresholdLower,
     },
     {
-      // 一時停止中はポーリングしない
-      refetchInterval: isPaused ? false : 60_000,
-      staleTime: 55_000,
+      refetchInterval: pollingInterval,
+      staleTime: 4 * 60_000, // 4分間はキャッシュを信頼
       retry: 2,
-      retryDelay: 5_000,
+      retryDelay: 10_000,
     }
   );
 
