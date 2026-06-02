@@ -1,4 +1,4 @@
-import { eq, desc, gte } from "drizzle-orm";
+import { eq, desc, gte, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -203,6 +203,85 @@ export async function saveDailyReport(
   }
 
   return newReport;
+}
+
+/**
+ * 直近N営業日の「銘柄別の調子（実績）」を集計する。
+ * 事前推奨（明日の推奨銘柄）の算出に使う。後知恵にならないよう、
+ * 指定日（excludeDate）より前のレポートだけを対象にできる。
+ *
+ * @param days 集計対象の営業日数（既定10）
+ * @param excludeDate この日付以降を除外（YYYY-MM-DD）。当日の結果を見ないようにするため。
+ */
+export async function getSymbolPerformanceHistory(days = 10, excludeDate?: string) {
+  const db = await getDb();
+  if (!db) return [] as Array<{
+    symbol: string;
+    name: string;
+    appearances: number;
+    totalProfit: number;
+    totalWin: number;
+    totalLoss: number;
+    avgWinRate: number;
+  }>;
+
+  // 対象の daily_reports を取得（excludeDate より前、新しい順に days 件）
+  let reportRows = await db
+    .select()
+    .from(dailyReports)
+    .orderBy(desc(dailyReports.reportDate));
+
+  if (excludeDate) {
+    reportRows = reportRows.filter((r) => r.reportDate < excludeDate);
+  }
+  reportRows = reportRows.slice(0, days);
+
+  if (reportRows.length === 0) return [];
+
+  const reportIds = reportRows.map((r) => r.id);
+  const stocks = await db
+    .select()
+    .from(stockReports)
+    .where(inArray(stockReports.dailyReportId, reportIds));
+
+  // 銘柄ごとに集計
+  const agg = new Map<string, {
+    symbol: string;
+    name: string;
+    appearances: number;
+    totalProfit: number;
+    totalWin: number;
+    totalLoss: number;
+    winRateSum: number;
+  }>();
+
+  for (const s of stocks) {
+    const cur = agg.get(s.symbol) ?? {
+      symbol: s.symbol,
+      name: s.name,
+      appearances: 0,
+      totalProfit: 0,
+      totalWin: 0,
+      totalLoss: 0,
+      winRateSum: 0,
+    };
+    cur.appearances += 1;
+    cur.totalProfit += Number(s.profitAmount);
+    cur.totalWin += Number(s.winCount);
+    cur.totalLoss += Number(s.tradesCount) - Number(s.winCount);
+    cur.winRateSum += parseFloat(String(s.winRate));
+    agg.set(s.symbol, cur);
+  }
+
+  return Array.from(agg.values()).map((a) => ({
+    symbol: a.symbol,
+    name: a.name,
+    appearances: a.appearances,
+    totalProfit: a.totalProfit,
+    totalWin: a.totalWin,
+    totalLoss: a.totalLoss,
+    avgWinRate: a.appearances > 0 ? a.winRateSum / a.appearances : 0,
+  }));
 }
 
 // ============================================================

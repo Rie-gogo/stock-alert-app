@@ -9,6 +9,7 @@ import AlertHistoryComponent from '../components/AlertHistoryComponent';
 import BacktestModal from '../components/BacktestModal';
 import AIAdvisorPanel from '../components/AIAdvisorPanel';
 import DailyReportModal from '../components/DailyReportModal';
+import RecommendationPanel from '../components/RecommendationPanel';
 import { diagnoseMarket } from '../lib/advisor';
 import { toast } from 'sonner';
 import {
@@ -387,9 +388,26 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 右側：パラメータ設定 (3カラム) */}
+        {/* 右側：推奨銘柄 ＆ パラメータ設定 (3カラム) */}
         <div className="xl:col-span-3 flex flex-col space-y-4">
-          <Card className="border-border bg-card/60 backdrop-blur-sm h-full">
+
+          {/* 本日の推奨銘柄トップ3（過去実績ベース・絞り込み表示） */}
+          <RecommendationPanel
+            activeSymbol={selectedStock.symbol.replace('.T', '')}
+            onPickSymbol={(sym) => {
+              const stock = REAL_STOCKS.find(
+                (s) => s.symbol === sym || s.symbol.replace('.T', '') === sym
+              );
+              if (stock) {
+                setSelectedStock(stock);
+                setAlerts([]);
+                setSelectedCandle(null);
+                toast.success(`監視銘柄を切替: ${stock.name}`, { duration: 2000 });
+              }
+            }}
+          />
+
+          <Card className="border-border bg-card/60 backdrop-blur-sm">
             <CardHeader className="py-3 border-b border-border/50">
               <CardTitle className="text-xs font-extrabold flex items-center space-x-2">
                 <Sliders className="w-4 h-4 text-primary" />

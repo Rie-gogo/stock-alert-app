@@ -172,4 +172,16 @@
 - [x] 共通5営業日で比較（10銘柄日平均+7,980円→、20銘柄+32,080円）し、低相性追加5銘柄（6723/5803/8316/7203/5016）を最小ロット化→日平均+44,900円に最適化
 - [x] 関連テスト（realMarketData.test.ts）を共有定義参照に更新し全合格確認（64テスト全通過、tscエラー0件）
 - [x] 20銘柄で本日再シミュレーション実行（最適化後+10,000円、最小ロット化が損失を抑制）・66テスト全通過
-- [ ] チェックポイント保存と結果報告
+- [x] チェックポイント保存（version: 38e94239）と結果報告
+
+## ハイブリッド運用アップデート（2026-06-02 着手）— 同時保有3銘柄制限＋業種分散
+- [x] shared/stocks.ts に各銘柄の業種(sector)を定義（MAX_CONCURRENT=3, MAX_PER_SECTOR=2も追加）
+- [x] portfolio.ts を新設し同時保有上限(3)と業種分散上限(同業種最大2)を実装（applyPortfolioRules）
+- [x] 「本日の推奨銘柄トップ3」を算出するロジックを追加（rankRecommendedSymbolsをgenerateRealDailyReportに組込）
+- [x] 推奨銘柄を「過去レポート（直近の調子・勝率）」で事前算出する方式に作り直し（recommendForNextDay）
+- [x] 過去レポート集計関数 getSymbolPerformanceHistory を db.ts に追加（excludeDateで後知恵回避）
+- [x] 事前推奨トップ3を tRPC trading.getRecommendations で返す（フロント表示は次）
+- [x] portfolio.test.ts（applyPortfolioRules/rankRecommendedSymbols/recommendForNextDay）の vitest を追加し全合格（77テスト・tsc 0件）
+- [x] RecommendationPanel.tsxを作成しHome.tsx右サイドバーに「本日の推奨銘柄トップ3」を表示（クリックで監視銘柄切替）
+- [x] 全テスト再実行（77テスト全通過、tscエラー0件）
+- [ ] チェックポイント保存と明日のリアルタイム実践手順の案内

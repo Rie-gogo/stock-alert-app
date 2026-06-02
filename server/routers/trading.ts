@@ -11,10 +11,12 @@ import {
   saveAlgorithmImprovement,
   getAlgorithmImprovements,
   getRecentStats,
+  getSymbolPerformanceHistory,
 } from "../db";
 import { generateDailySimReport } from "../simulation";
 import { generateRealDailyReport } from "../realSimulation";
 import { invokeLLM } from "../_core/llm";
+import { recommendForNextDay, type SymbolHistoryInput } from "../portfolio";
 
 export const tradingRouter = router({
   /**
@@ -303,5 +305,30 @@ export const tradingRouter = router({
     .input(z.object({ days: z.number().min(7).max(90).default(30) }))
     .query(async ({ input }) => {
       return getRecentStats(input.days);
+    }),
+
+  /**
+   * 【本日の推奨銘柄トップ3】事前推奨
+   * 過去レポート（直近N営業日の銘柄別調子）から、明日・本日狙うべき銘柄を返す。
+   * 当日の結果を見ず（後知恵を避ける）、業種分散の上限を守って選別する。
+   */
+  getRecommendations: publicProcedure
+    .input(
+      z.object({
+        days: z.number().min(3).max(30).default(10),
+        topN: z.number().min(1).max(5).default(3),
+        excludeDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const history = await getSymbolPerformanceHistory(input.days, input.excludeDate);
+      const recommendations = recommendForNextDay(
+        history as SymbolHistoryInput[],
+        input.topN
+      );
+      return {
+        basedOnDays: history.length > 0 ? Math.min(input.days, history.length) : 0,
+        recommendations,
+      };
     }),
 });

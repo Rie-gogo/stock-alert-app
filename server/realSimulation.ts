@@ -6,6 +6,7 @@
 import { callDataApi } from "./_core/dataApi";
 import type { StockSimResult, TradeRecord, SignalRecord } from "./simulation";
 import { TARGET_STOCKS } from "../shared/stocks";
+import { applyPortfolioRules, rankRecommendedSymbols, type PerStockTrades, type SymbolScoreInput } from "./portfolio";
 
 // 共有定義からインポート（client/src/hooks/useRealMarketData.ts と同一ソース）
 export const REAL_TARGET_STOCKS = TARGET_STOCKS.map((s) => ({
@@ -703,6 +704,23 @@ export async function generateRealDailyReport(
   const totalTrades = totalWinCount + totalLossCount;
   const overallWinRate = totalTrades > 0 ? totalWinCount / totalTrades : 0;
 
+  // ============================================================
+  // 【ハイブリッド運用】同時保有3銘柄・同業種2銘柄の上限を適用
+  // ============================================================
+  // 各銘柄の取引履歴を時刻順に統合し、ポートフォリオ全体で枠を管理する。
+  const perStock: PerStockTrades[] = stockReports.map((r) => ({ symbol: r.symbol, trades: r.trades }));
+  const portfolio = applyPortfolioRules(perStock);
+
+  // 【本日の推奨銘柄】実績スコア順（損益主体・業種分散を考慮）でトップ3を選ぶ
+  const scoreInputs: SymbolScoreInput[] = stockReports.map((r) => ({
+    symbol: r.symbol,
+    name: r.name,
+    profit: r.profitAmount,
+    winCount: r.winCount,
+    lossCount: r.lossCount,
+  }));
+  const recommendedSymbols = rankRecommendedSymbols(scoreInputs, 3);
+
   return {
     date: dateStr,
     totalInitialCapital,
@@ -718,5 +736,8 @@ export async function generateRealDailyReport(
     stockReports,
     realDataCount,
     isRealData: true, // 常にtrue（実データのみ使用）
+    // ハイブリッド運用の追加情報
+    portfolio,
+    recommendedSymbols,
   };
 }
