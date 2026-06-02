@@ -7,6 +7,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 import { callDataApi } from "../_core/dataApi";
 import { TRPCError } from "@trpc/server";
+import { TARGET_STOCKS, getStockName, getSector, TICKER_BY_SYMBOL } from "../../shared/stocks";
 
 // ---- テクニカル指標計算 ----
 
@@ -71,7 +72,7 @@ function calcBollinger(
 }
 
 // ---- シグナル検出（アプリと同じロジック） ----
-interface CandleWithSignal {
+export interface CandleWithSignal {
   time: string;
   timestamp: number;
   open: number;
@@ -170,6 +171,171 @@ function getCachedOrFetch(
     stockCache.set(cacheKey, { data, cachedAt: now, ttlMs });
     return data;
   });
+}
+
+// ---- 複数銘柄スキャン用ヘルパー ----
+
+export interface ScannedSignal {
+  symbol: string;
+  name: string;
+  sector: string;
+  currentPrice: number;
+  priceChange: number;
+  priceChangePercent: number;
+  rsi: number | null;
+  ma5: number | null;
+  ma25: number | null;
+  /** 最新足で成立しているシグナル（なければ null） */
+  latestSignal: { type: "buy" | "sell" | "warn"; reason: string } | null;
+  /** 最新足の時刻文字列（"HH:MM"） */
+  latestSignalTime: string | null;
+  /** データ取得に失敗した場合 true */
+  error: boolean;
+}
+
+/**
+ * シグナル付きローソク足の配列から「最新の有効なシグナル」を抽出する純粋関数。
+ * 直近 lookback 本以内に出たシグナルのうち、最も新しいものを返す。
+ * 古いシグナルで誤発火しないよう、既定では直近2本のみを対象にする。
+ */
+export function extractLatestSignal(
+  candles: CandleWithSignal[],
+  lookback = 2
+): { signal: { type: "buy" | "sell" | "warn"; reason: string } | null; time: string | null } {
+  if (candles.length === 0) return { signal: null, time: null };
+  const start = Math.max(0, candles.length - lookback);
+  for (let i = candles.length - 1; i >= start; i--) {
+    const c = candles[i];
+    if (c.signal) {
+      return { signal: c.signal, time: c.time };
+    }
+  }
+  return { signal: null, time: null };
+}
+
+/**
+ * 1銘柄分のチャートを取得し、テクニカル指標とシグナルを計算して
+ * スキャン結果（最新シグナル・現在値など）を返す。
+ * 取得に失敗しても例外を投げず error:true の結果を返す（一括スキャンを止めないため）。
+ */
+async function scanSymbol(
+  symbol: string,
+  rsiUpper: number,
+  rsiLower: number
+): Promise<ScannedSignal> {
+  const ticker = TICKER_BY_SYMBOL[symbol] ?? `${symbol}.T`;
+  const name = getStockName(symbol);
+  const sector = getSector(symbol);
+  const base: ScannedSignal = {
+    symbol,
+    name,
+    sector,
+    currentPrice: 0,
+    priceChange: 0,
+    priceChangePercent: 0,
+    rsi: null,
+    ma5: null,
+    ma25: null,
+    latestSignal: null,
+    latestSignalTime: null,
+    error: false,
+  };
+
+  try {
+    const cacheKey = `${ticker}:1d:1m`;
+    const rawData = await getCachedOrFetch(cacheKey, () =>
+      callDataApi("YahooFinance/get_stock_chart", {
+        query: { symbol: ticker, region: "JP", interval: "1m", range: "1d" },
+      })
+    );
+
+    const data = rawData as {
+      chart?: {
+        result?: Array<{
+          meta: {
+            regularMarketPrice: number;
+            previousClose?: number;
+          };
+          timestamp: number[];
+          indicators: {
+            quote: Array<{
+              open: (number | null)[];
+              high: (number | null)[];
+              low: (number | null)[];
+              close: (number | null)[];
+              volume: (number | null)[];
+            }>;
+          };
+        }>;
+      };
+    };
+
+    const r = data?.chart?.result?.[0];
+    if (!r) return { ...base, error: true };
+
+    const meta = r.meta;
+    const timestamps = r.timestamp ?? [];
+    const quotes = r.indicators.quote[0];
+
+    const rawCandles: CandleWithSignal[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      const o = quotes.open[i];
+      const c = quotes.close[i];
+      if (o === null || c === null) continue;
+      const d = new Date(timestamps[i] * 1000);
+      const jstHour = (d.getUTCHours() + 9) % 24;
+      const timeStr = `${String(jstHour).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+      rawCandles.push({
+        time: timeStr,
+        timestamp: timestamps[i] * 1000,
+        open: Math.round((o ?? 0) * 10) / 10,
+        high: Math.round((quotes.high[i] ?? o ?? 0) * 10) / 10,
+        low: Math.round((quotes.low[i] ?? o ?? 0) * 10) / 10,
+        close: Math.round((c ?? 0) * 10) / 10,
+        volume: Math.round(quotes.volume[i] ?? 0),
+        ma5: null, ma25: null, rsi: null,
+        bbUpper: null, bbMiddle: null, bbLower: null,
+      });
+    }
+
+    if (rawCandles.length === 0) return { ...base, error: true };
+
+    const closes = rawCandles.map(c => c.close);
+    const ma5 = calcMA(closes, 5);
+    const ma25 = calcMA(closes, 25);
+    const rsi = calcRSI(closes, 14);
+    const bb = calcBollinger(closes, 20, 2);
+    rawCandles.forEach((c, i) => {
+      c.ma5 = ma5[i]; c.ma25 = ma25[i]; c.rsi = rsi[i];
+      c.bbUpper = bb.upper[i]; c.bbMiddle = bb.middle[i]; c.bbLower = bb.lower[i];
+    });
+
+    const withSignals = detectSignals(rawCandles, rsiUpper, rsiLower);
+    const last = withSignals[withSignals.length - 1];
+    const { signal, time } = extractLatestSignal(withSignals, 2);
+
+    const lastClose = last.close;
+    const prevClose = meta.previousClose ?? lastClose;
+    const priceChange = Math.round((lastClose - prevClose) * 10) / 10;
+    const priceChangePercent = prevClose > 0 ? Math.round((priceChange / prevClose) * 1000) / 10 : 0;
+
+    return {
+      symbol,
+      name,
+      sector,
+      currentPrice: meta.regularMarketPrice ?? lastClose,
+      priceChange,
+      priceChangePercent,
+      rsi: last.rsi,
+      ma5: last.ma5,
+      ma25: last.ma25,
+      latestSignal: signal,
+      latestSignalTime: time,
+      error: false,
+    };
+  } catch {
+    return { ...base, error: true };
+  }
 }
 
 // ---- tRPCルーター ----
@@ -374,5 +540,42 @@ export const stockDataRouter = router({
       return popularStocks.filter(
         s => s.name.includes(input.query) || s.symbol.toLowerCase().includes(q)
       );
+    }),
+
+  /**
+   * 【複数銘柄一括シグナルスキャン】
+   * 表示中の銘柄に依存せず、指定した複数銘柄の最新シグナル・現在値・RSIを一括で返す。
+   * バックグラウンドで定期ポーリングし、売買サインの見逃しを防ぐために使う。
+   * symbols 未指定時は監視全銘柄を対象にする。
+   */
+  getSignalScan: publicProcedure
+    .input(
+      z.object({
+        symbols: z.array(z.string()).max(20).optional(),
+        rsiUpper: z.number().min(50).max(90).default(70),
+        rsiLower: z.number().min(10).max(50).default(30),
+      })
+    )
+    .query(async ({ input }) => {
+      const targets =
+        input.symbols && input.symbols.length > 0
+          ? input.symbols
+          : TARGET_STOCKS.map((s) => s.symbol);
+
+      // APIレート制限を避けるため、小さな並列度で順次処理する
+      const results: ScannedSignal[] = [];
+      const CONCURRENCY = 4;
+      for (let i = 0; i < targets.length; i += CONCURRENCY) {
+        const batch = targets.slice(i, i + CONCURRENCY);
+        const scanned = await Promise.all(
+          batch.map((sym) => scanSymbol(sym, input.rsiUpper, input.rsiLower))
+        );
+        results.push(...scanned);
+      }
+
+      return {
+        scannedAt: Date.now(),
+        results,
+      };
     }),
 });

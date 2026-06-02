@@ -48,3 +48,17 @@ export const SECTOR_BY_SYMBOL: Record<string, string> = Object.fromEntries(
 export function getSector(symbol: string): string {
   return SECTOR_BY_SYMBOL[symbol] ?? 'その他';
 }
+
+/** symbol -> name の早見表 */
+export const NAME_BY_SYMBOL: Record<string, string> = Object.fromEntries(
+  TARGET_STOCKS.map((s) => [s.symbol, s.name]),
+);
+
+export function getStockName(symbol: string): string {
+  return NAME_BY_SYMBOL[symbol] ?? symbol;
+}
+
+/** symbol -> ticker の早見表 */
+export const TICKER_BY_SYMBOL: Record<string, string> = Object.fromEntries(
+  TARGET_STOCKS.map((s) => [s.symbol, s.ticker]),
+);

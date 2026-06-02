@@ -197,3 +197,12 @@
 - [x] paperTrade の vitest を追加して全通過（8ファイル84テスト pass）
 - [x] チェックポイント保存・ユーザー案内
 - [x] 仮想売買ボタンをヘッダー右上に設置（ダイアログで開く・保有件数バッジ付き、右サイドバーの旧パネルは撤去）
+
+## 全銘柄バックグラウンド監視＋シグナル通知（案1）
+- [x] server/routers/stockData.ts に複数銘柄一括スキャン手続き getSignalScan を追加
+- [x] extractLatestSignal 純粋関数と scanSymbol ヘルパーを追加（既存 detectSignals を再利用）
+- [x] フロントに SignalMonitorBoard コンポーネントを追加（推奨3銘柄＋選択銘柄の現在シグナル・現在値・RSIを常時表示）
+- [x] シグナル発生時に通知（トースト・音・件数バッジ）を表示、通知ON/OFF切替付き
+- [x] 通知/ボードから1クリックで銘柄切替＋仮売買ダイアログを開く導線
+- [x] extractLatestSignal の vitest を追加（7テスト、合計91テスト pass）
+- [x] 動作確認・チェックポイント保存・ユーザー報告

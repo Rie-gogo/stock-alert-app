@@ -29,13 +29,33 @@ interface PaperTradePanelProps {
   symbolName: string;
   /** 現在値（円）。null の場合はボタンを無効化 */
   currentPrice: number | null;
+  /** 外部から開閉を制御する場合に渡す（省略時は内部state＋トリガーボタンを使用） */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** トリガーボタンを非表示にする（外部制御で開く場合に使用） */
+  hideTrigger?: boolean;
 }
 
 const DEFAULT_QTY = 100;
 
-export default function PaperTradePanel({ symbol, symbolName, currentPrice }: PaperTradePanelProps) {
+export default function PaperTradePanel({
+  symbol,
+  symbolName,
+  currentPrice,
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger,
+}: PaperTradePanelProps) {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const utils = trpc.useUtils();
+
+  const [internalOpen, setInternalOpen] = useState<boolean>(false);
+  const isControlled = controlledOpen !== undefined;
+  const dialogOpen = isControlled ? controlledOpen : internalOpen;
+  const handleOpenChange = (v: boolean) => {
+    if (!isControlled) setInternalOpen(v);
+    onOpenChange?.(v);
+  };
 
   const [quantity, setQuantity] = useState<number>(DEFAULT_QTY);
 
@@ -139,18 +159,20 @@ export default function PaperTradePanel({ symbol, symbolName, currentPrice }: Pa
   );
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <button className="relative flex items-center space-x-1 px-3 py-1 rounded text-xs font-bold transition-all duration-200 border bg-yellow-500/10 text-yellow-300 border-yellow-500/30 hover:bg-yellow-500/20 active:scale-[0.97]">
-          <Wallet className="w-3.5 h-3.5" />
-          <span>仮想売買</span>
-          {isAuthenticated && openTrades.length > 0 && (
-            <span className="ml-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-yellow-500 text-black text-[9px] font-extrabold">
-              {openTrades.length}
-            </span>
-          )}
-        </button>
-      </DialogTrigger>
+    <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <button className="relative flex items-center space-x-1 px-3 py-1 rounded text-xs font-bold transition-all duration-200 border bg-yellow-500/10 text-yellow-300 border-yellow-500/30 hover:bg-yellow-500/20 active:scale-[0.97]">
+            <Wallet className="w-3.5 h-3.5" />
+            <span>仮想売買</span>
+            {isAuthenticated && openTrades.length > 0 && (
+              <span className="ml-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-yellow-500 text-black text-[9px] font-extrabold">
+                {openTrades.length}
+              </span>
+            )}
+          </button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[480px] bg-card border border-border text-foreground max-h-[88vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-sm font-bold flex items-center space-x-2">

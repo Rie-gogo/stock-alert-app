@@ -11,6 +11,8 @@ import AIAdvisorPanel from '../components/AIAdvisorPanel';
 import DailyReportModal from '../components/DailyReportModal';
 import RecommendationPanel from '../components/RecommendationPanel';
 import PaperTradePanel from '../components/PaperTradePanel';
+import SignalMonitorBoard from '../components/SignalMonitorBoard';
+import { trpc } from '@/lib/trpc';
 import { diagnoseMarket } from '../lib/advisor';
 import { toast } from 'sonner';
 import {
@@ -29,6 +31,7 @@ import {
   WifiOff,
   Clock,
   Loader2,
+  Wallet,
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,6 +45,17 @@ export default function Home() {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [alerts, setAlerts] = useState<AlertLog[]>([]);
   const [selectedCandle, setSelectedCandle] = useState<CandleData | null>(null);
+
+  // ---- 仮売買ダイアログの外部制御 ----
+  const [tradeDialogOpen, setTradeDialogOpen] = useState<boolean>(false);
+  // 仮売買ダイアログで対象にする銘柄（".T" なしコード）。null の場合は現在の選択銘柄。
+  const [tradeTargetSymbol, setTradeTargetSymbol] = useState<string | null>(null);
+
+  // ---- 推奨銘柄（スキャン対象に含めるため取得）----
+  const recommendationsQuery = trpc.trading.getRecommendations.useQuery(
+    { days: 10, topN: 3 },
+    { staleTime: 5 * 60 * 1000 }
+  );
 
   // ---- アラートハンドラ ----
   const handleAlert = useCallback((alert: AlertLog) => {
@@ -101,6 +115,51 @@ export default function Home() {
       description: `${alert.time} [${alert.symbol}] ${alert.title} (価格: ${alert.price.toFixed(1)})`,
     });
   };
+
+  // 現在の選択銘柄コード（".T" なし）
+  const activeSymbolCode = selectedStock.symbol.replace('.T', '');
+
+  // ---- 銘柄切替ヘルパー（コード、".T" あり・なしどちらでも可）----
+  const switchStock = useCallback((sym: string) => {
+    const stock = REAL_STOCKS.find(
+      (s) => s.symbol === sym || s.symbol.replace('.T', '') === sym
+    );
+    if (stock) {
+      setSelectedStock(stock);
+      setAlerts([]);
+      setSelectedCandle(null);
+      toast.success(`監視銘柄を切替: ${stock.name}`, { duration: 2000 });
+    }
+  }, []);
+
+  // ---- スキャン対象銘柄（推奨3銘柄＋選択中銘柄、".T" なしコード）----
+  const scanSymbols = useMemo(() => {
+    const recs = (recommendationsQuery.data?.recommendations ?? []).map((r) => r.symbol);
+    return Array.from(new Set([...recs, activeSymbolCode]));
+  }, [recommendationsQuery.data, activeSymbolCode]);
+
+  // ---- 仮売買ダイアログを指定銘柄で開く ----
+  const openTradeFor = useCallback(
+    (sym: string) => {
+      // 対象銘柄が現在の選択銘柄と異なる場合は、現在値を取得するために銘柄も切替える
+      if (sym !== activeSymbolCode) {
+        switchStock(sym);
+      }
+      setTradeTargetSymbol(sym);
+      setTradeDialogOpen(true);
+    },
+    [activeSymbolCode, switchStock]
+  );
+
+  // 仮売買ダイアログで表示する銘柄名・現在値
+  const tradeSymbolCode = tradeTargetSymbol ?? activeSymbolCode;
+  const tradeStock = REAL_STOCKS.find((s) => s.symbol.replace('.T', '') === tradeSymbolCode);
+  const tradeSymbolName = tradeStock?.name ?? selectedStock.name;
+  // 仮売買ダイアログを開く際は必ず対象銘柄に切替えるため、現在値は表示中銘柄のリアルタイム値を使う
+  const tradePrice =
+    tradeSymbolCode === activeSymbolCode && marketState
+      ? marketState.currentPrice
+      : null;
 
   // ---- 最終更新時刻の表示 ----
   const lastUpdatedStr = lastUpdated
@@ -217,12 +276,28 @@ export default function Home() {
 
         {/* 右側：コントロール */}
         <div className="flex items-center space-x-3">
-          {/* 仮想売買（ペーパートレード）ボタン */}
+          {/* 仮想売買（ペーパートレード）ボタン（ヘッダーから現在銘柄で開く） */}
           <PaperTradePanel
-            symbol={selectedStock.symbol.replace('.T', '')}
-            symbolName={selectedStock.name}
-            currentPrice={marketState ? marketState.currentPrice : null}
+            symbol={tradeSymbolCode}
+            symbolName={tradeSymbolName}
+            currentPrice={tradePrice}
+            open={tradeDialogOpen}
+            onOpenChange={(v) => {
+              setTradeDialogOpen(v);
+              if (!v) setTradeTargetSymbol(null);
+            }}
+            hideTrigger
           />
+          <button
+            onClick={() => {
+              setTradeTargetSymbol(activeSymbolCode);
+              setTradeDialogOpen(true);
+            }}
+            className="relative flex items-center space-x-1 px-3 py-1 rounded text-xs font-bold transition-all duration-200 border bg-yellow-500/10 text-yellow-300 border-yellow-500/30 hover:bg-yellow-500/20 active:scale-[0.97]"
+          >
+            <Wallet className="w-3.5 h-3.5" />
+            <span>仮想売買</span>
+          </button>
 
           <DailyReportModal rsiUpper={rsiUpper} rsiLower={rsiLower} />
 
@@ -300,6 +375,17 @@ export default function Home() {
               ruleBasedDiagnosis={marketDiagnosis}
             />
           </div>
+
+          {/* シグナル監視ボード（全銘柄バックグラウンド監視） */}
+          <SignalMonitorBoard
+            symbols={scanSymbols}
+            activeSymbol={activeSymbolCode}
+            rsiUpper={rsiUpper}
+            rsiLower={rsiLower}
+            soundEnabled={soundEnabled}
+            onPickSymbol={switchStock}
+            onTrade={openTradeFor}
+          />
 
           {/* チャート(7) ＋ 出来高分析(2.5) ＋ ローソク足詳細(2.5) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -401,18 +487,8 @@ export default function Home() {
 
           {/* 本日の推奨銘柄トップ3（過去実績ベース・絞り込み表示） */}
           <RecommendationPanel
-            activeSymbol={selectedStock.symbol.replace('.T', '')}
-            onPickSymbol={(sym) => {
-              const stock = REAL_STOCKS.find(
-                (s) => s.symbol === sym || s.symbol.replace('.T', '') === sym
-              );
-              if (stock) {
-                setSelectedStock(stock);
-                setAlerts([]);
-                setSelectedCandle(null);
-                toast.success(`監視銘柄を切替: ${stock.name}`, { duration: 2000 });
-              }
-            }}
+            activeSymbol={activeSymbolCode}
+            onPickSymbol={switchStock}
           />
 
           <Card className="border-border bg-card/60 backdrop-blur-sm">
