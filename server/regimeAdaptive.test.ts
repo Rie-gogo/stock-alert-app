@@ -93,6 +93,21 @@ describe("getLotRatio（銘柄別ロット縮小）", () => {
     expect(getLotRatio("9107")).toBe(REGIME_CONSTANTS.LOT_SMALL);
   });
 
+  it("20銘柄拡張時に低相性だった追加銘柄（ルネサス・フジクラ・三井住友FG・トヨタ・JX金属）は最小ロット", () => {
+    expect(getLotRatio("6723")).toBe(REGIME_CONSTANTS.LOT_SMALL);
+    expect(getLotRatio("5803")).toBe(REGIME_CONSTANTS.LOT_SMALL);
+    expect(getLotRatio("8316")).toBe(REGIME_CONSTANTS.LOT_SMALL);
+    expect(getLotRatio("7203")).toBe(REGIME_CONSTANTS.LOT_SMALL);
+    expect(getLotRatio("5016")).toBe(REGIME_CONSTANTS.LOT_SMALL);
+  });
+
+  it("貢献の大きい追加銘柄（太陽誘電・SUMCO・村田・ソニー）は通常ロット", () => {
+    expect(getLotRatio("6976")).toBe(REGIME_CONSTANTS.LOT_NORMAL);
+    expect(getLotRatio("3436")).toBe(REGIME_CONSTANTS.LOT_NORMAL);
+    expect(getLotRatio("6981")).toBe(REGIME_CONSTANTS.LOT_NORMAL);
+    expect(getLotRatio("6758")).toBe(REGIME_CONSTANTS.LOT_NORMAL);
+  });
+
   it("通常銘柄は通常ロット", () => {
     expect(getLotRatio("8306")).toBe(REGIME_CONSTANTS.LOT_NORMAL);
   });

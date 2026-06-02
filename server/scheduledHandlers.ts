@@ -51,11 +51,11 @@ export async function dailySimulationHandler(req: Request, res: Response) {
     const simResult = await generateRealDailyReport(dateStr, rsiUpper, rsiLower, stopLossPercent);
 
     const dataSource = simResult.isRealData
-      ? `実際の株価データ (${simResult.realDataCount}/10銘柄)`
+      ? `実際の株価データ (${simResult.realDataCount}銘柄)`
       : "架空データ（市場データ取得失敗のためフォールバック）";
 
     console.log(`[daily-simulation] Data source: ${dataSource}`);
-    console.log(`[daily-simulation] Real data: ${simResult.realDataCount}/10 stocks, isRealData=${simResult.isRealData}`);
+    console.log(`[daily-simulation] Real data: ${simResult.realDataCount} stocks, isRealData=${simResult.isRealData}`);
 
     // 実データが1銘柄も取得できなかった場合は警告ログを出す
     if (!simResult.isRealData) {
@@ -283,7 +283,7 @@ export async function manualSimulationHandler(req: Request, res: Response) {
     console.log(`[manual-simulation] Fetching real Yahoo Finance data for ${dateStr}...`);
     const simResult = await generateRealDailyReport(dateStr, rsiUpper, rsiLower, stopLossPercent);
 
-    const dataSource = `実際の株価データ (${simResult.realDataCount}/10銘柄)`;
+    const dataSource = `実際の株価データ (${simResult.realDataCount}銘柄)`;
     console.log(`[manual-simulation] Data source: ${dataSource}`);
 
     // AI分析サマリーの生成

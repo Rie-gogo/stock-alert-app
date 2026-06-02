@@ -22,7 +22,7 @@ async function main() {
   const simResult = await generateRealDailyReport(dateStr, rsiUpper, rsiLower, stopLossPercent);
 
   const dataSource = simResult.isRealData
-    ? `実際の株価データ (${simResult.realDataCount}/10銘柄)`
+    ? `実際の株価データ (${simResult.realDataCount}銘柄)`
     : "架空データ（市場データ取得失敗のためフォールバック）";
 
   console.log(`\nデータソース: ${dataSource}`);

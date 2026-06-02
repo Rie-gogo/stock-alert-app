@@ -17,7 +17,7 @@ async function main() {
     const result = await generateRealDailyReport(dateStr, 70, 30, 1.5);
 
     console.log("\n=== 結果 ===");
-    console.log(`実データ使用: ${result.isRealData} (${result.realDataCount}/${10}銘柄)`);
+    console.log(`実データ使用: ${result.isRealData} (${result.realDataCount}銘柄)`);
     console.log(`総合損益: ${result.totalProfitAmount.toLocaleString()}円`);
     console.log(`全体勝率: ${(result.overallWinRate * 100).toFixed(1)}%`);
     console.log(`総取引数: ${result.totalWinCount + result.totalLossCount}回 (勝:${result.totalWinCount} 負:${result.totalLossCount})`);

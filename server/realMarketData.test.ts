@@ -6,6 +6,7 @@
  * - ローソク足変換
  */
 import { describe, it, expect } from 'vitest';
+import { TARGET_STOCKS } from '../shared/stocks';
 
 // ---- ヘルパー関数をインラインで再実装（クライアントコードをサーバーテストで直接importできないため） ----
 
@@ -151,34 +152,25 @@ describe('isJSTMarketOpen', () => {
   });
 });
 
-describe('REAL_STOCKS list', () => {
-  // 実銘柄リストの定義確認
-  const REAL_STOCKS = [
-    { symbol: '6526.T', name: 'ソシオネクスト',         basePrice: 3250 },
-    { symbol: '6920.T', name: 'レーザーテック',          basePrice: 22400 },
-    { symbol: '6857.T', name: 'アドバンテスト',          basePrice: 8800 },
-    { symbol: '9107.T', name: '川崎汽船',               basePrice: 2100 },
-    { symbol: '8306.T', name: '三菱UFJ FG',             basePrice: 1650 },
-    { symbol: '9984.T', name: 'ソフトバンクグループ',    basePrice: 8420 },
-    { symbol: '8035.T', name: '東京エレクトロン',        basePrice: 24800 },
-    { symbol: '7011.T', name: '三菱重工業',              basePrice: 2900 },
-    { symbol: '4568.T', name: '第一三共',               basePrice: 4500 },
-    { symbol: '3778.T', name: 'さくらインターネット',    basePrice: 4100 },
-  ];
-
-  it('should have exactly 10 stocks', () => {
-    expect(REAL_STOCKS).toHaveLength(10);
+describe('TARGET_STOCKS 銘柄リスト（共有定義）', () => {
+  it('20銘柄体制に拡張されている', () => {
+    expect(TARGET_STOCKS).toHaveLength(20);
   });
 
-  it('all symbols should end with .T', () => {
-    REAL_STOCKS.forEach((s) => {
-      expect(s.symbol.endsWith('.T')).toBe(true);
+  it('すべてのtickerは .T で終わる（東証銘柄）', () => {
+    TARGET_STOCKS.forEach((s) => {
+      expect(s.ticker.endsWith('.T')).toBe(true);
     });
   });
 
-  it('all basePrices should be positive', () => {
-    REAL_STOCKS.forEach((s) => {
+  it('すべてのbasePriceは正の値', () => {
+    TARGET_STOCKS.forEach((s) => {
       expect(s.basePrice).toBeGreaterThan(0);
     });
+  });
+
+  it('銘柄コードに重複がない', () => {
+    const symbols = TARGET_STOCKS.map((s) => s.symbol);
+    expect(new Set(symbols).size).toBe(symbols.length);
   });
 });
