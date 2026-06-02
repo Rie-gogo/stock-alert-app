@@ -217,6 +217,13 @@ export default function Home() {
 
         {/* 右側：コントロール */}
         <div className="flex items-center space-x-3">
+          {/* 仮想売買（ペーパートレード）ボタン */}
+          <PaperTradePanel
+            symbol={selectedStock.symbol.replace('.T', '')}
+            symbolName={selectedStock.name}
+            currentPrice={marketState ? marketState.currentPrice : null}
+          />
+
           <DailyReportModal rsiUpper={rsiUpper} rsiLower={rsiLower} />
 
           <Link href="/reports">
@@ -406,13 +413,6 @@ export default function Home() {
                 toast.success(`監視銘柄を切替: ${stock.name}`, { duration: 2000 });
               }
             }}
-          />
-
-          {/* 仮想売買（ペーパートレード）パネル */}
-          <PaperTradePanel
-            symbol={selectedStock.symbol.replace('.T', '')}
-            symbolName={selectedStock.name}
-            currentPrice={marketState ? marketState.currentPrice : null}
           />
 
           <Card className="border-border bg-card/60 backdrop-blur-sm">

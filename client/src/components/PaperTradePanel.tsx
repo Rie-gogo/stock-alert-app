@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { getLoginUrl } from '@/const';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Wallet,
   TrendingUp,
@@ -15,6 +14,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MAX_CONCURRENT_POSITIONS } from '@shared/stocks';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
 interface PaperTradePanelProps {
   /** 現在の監視銘柄コード（".T" なし、例: 9984） */
@@ -114,48 +120,52 @@ export default function PaperTradePanel({ symbol, symbolName, currentPrice }: Pa
     closeMutation.mutate({ id, exitPrice: currentPrice });
   };
 
-  // 未ログイン時
-  if (!authLoading && !isAuthenticated) {
-    return (
-      <Card className="border-border bg-card/60 backdrop-blur-sm">
-        <CardHeader className="py-3 border-b border-border/50">
-          <CardTitle className="text-xs font-extrabold flex items-center space-x-2">
-            <Wallet className="w-4 h-4 text-primary" />
-            <span>仮想売買（ペーパートレード）</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="py-5 text-center space-y-3">
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            仮想売買を記録するにはログインが必要です。
-            <br />
-            ログインすると取引履歴があなたのアカウントに保存されます。
-          </p>
-          <a
-            href={getLoginUrl()}
-            className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded text-xs font-bold bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors"
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            <span>ログイン</span>
-          </a>
-        </CardContent>
-      </Card>
-    );
-  }
+  // ===== 未ログイン時のダイアログ内容 =====
+  const unauthBody = (
+    <div className="py-5 text-center space-y-3">
+      <p className="text-[12px] text-muted-foreground leading-relaxed">
+        仮想売買を記録するにはログインが必要です。
+        <br />
+        ログインすると取引履歴があなたのアカウントに保存されます。
+      </p>
+      <a
+        href={getLoginUrl()}
+        className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded text-xs font-bold bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors"
+      >
+        <LogIn className="w-3.5 h-3.5" />
+        <span>ログイン</span>
+      </a>
+    </div>
+  );
 
   return (
-    <Card className="border-border bg-card/60 backdrop-blur-sm">
-      <CardHeader className="py-3 border-b border-border/50">
-        <CardTitle className="text-xs font-extrabold flex items-center justify-between">
-          <span className="flex items-center space-x-2">
-            <Wallet className="w-4 h-4 text-primary" />
+    <Dialog>
+      <DialogTrigger asChild>
+        <button className="relative flex items-center space-x-1 px-3 py-1 rounded text-xs font-bold transition-all duration-200 border bg-yellow-500/10 text-yellow-300 border-yellow-500/30 hover:bg-yellow-500/20 active:scale-[0.97]">
+          <Wallet className="w-3.5 h-3.5" />
+          <span>仮想売買</span>
+          {isAuthenticated && openTrades.length > 0 && (
+            <span className="ml-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-yellow-500 text-black text-[9px] font-extrabold">
+              {openTrades.length}
+            </span>
+          )}
+        </button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[480px] bg-card border border-border text-foreground max-h-[88vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-bold flex items-center space-x-2">
+            <Wallet className="w-4 h-4 text-yellow-400" />
             <span>仮想売買（ペーパートレード）</span>
-          </span>
-          <span className="text-[8px] bg-yellow-500/15 text-yellow-400 px-1.5 py-0.5 rounded font-mono border border-yellow-500/30">
-            練習用
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="py-3 space-y-3">
+            <span className="text-[8px] bg-yellow-500/15 text-yellow-400 px-1.5 py-0.5 rounded font-mono border border-yellow-500/30">
+              練習用
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+
+        {!authLoading && !isAuthenticated ? (
+          unauthBody
+        ) : (
+          <div className="space-y-3 pt-1">
         {/* ===== エントリーフォーム ===== */}
         <div className="bg-secondary/20 border border-border/50 rounded-lg p-2.5 space-y-2.5">
           <div className="flex items-center justify-between">
@@ -377,10 +387,12 @@ export default function PaperTradePanel({ symbol, symbolName, currentPrice }: Pa
           </div>
         )}
 
-        <p className="text-[8px] text-muted-foreground leading-relaxed border-t border-border/40 pt-2">
-          ※ 実際の発注は行いません。決済は「決済」ボタンを押した時点の現在値で約定したものとして損益を計算します（手数料・スリッページは未考慮）。
-        </p>
-      </CardContent>
-    </Card>
+            <p className="text-[8px] text-muted-foreground leading-relaxed border-t border-border/40 pt-2">
+              ※ 実際の発注は行いません。決済は「決済」ボタンを押した時点の現在値で約定したものとして損益を計算します（手数料・スリッページは未考慮）。
+            </p>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
