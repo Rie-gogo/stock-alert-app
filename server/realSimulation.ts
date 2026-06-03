@@ -424,6 +424,8 @@ export interface SimOverrides {
   lunchExitAllMinute?: string;
   /** 銘柄ロット比率の上書き - 指定した場合はHIGH_VOL_SYMBOLSの判定を無視してこの値を使用 */
   lotRatio?: number;
+  /** ② ショート損切り後N本はショートエントリー禁止（損切り連発対策） */
+  shortStopCooldownBars?: number;
 }
 
 export function simulateStockReal(
@@ -460,6 +462,7 @@ export function simulateStockReal(
   let halted = false;         // サーキットブレーカー発動フラグ
   let gcCooldownRemaining = 0; // GC直後のショート禁止カウントダウン
   let shortEntryBar = -1;       // ショートエントリー時のインデックス（最大保有時間管理用）
+  let shortStopCooldownRemaining = 0; // ② ショート損切り後のエントリー禁止カウントダウン
 
   // A/B/C オーバーライドを定数から取得（省略時はモジュール定数を使用）
   const effectiveShortStopLoss = overrides.shortStopLossPercent ?? stopLossPercent;
@@ -691,9 +694,15 @@ export function simulateStockReal(
       curr.rsi < rsiUpper;
     // 戻り売り（厳選）／ ブレイク売り（下落相場限定）／ RSI買われすぎ+BB上限の明確な反転サイン。デッドクロス単独は採用しない。
     // GC直後のクールダウン中はショートエントリー禁止（上昇トレンド転換直後の逆行を回避）
+    // GCクールダウンをデクリメント（GC検出時にセット）
+    if (isGoldenCross) gcCooldownRemaining = SHORT_GC_COOLDOWN_BARS;
+    else if (gcCooldownRemaining > 0) gcCooldownRemaining--;
+    // ② ショート損切りクールダウンをデクリメント
+    if (shortStopCooldownRemaining > 0) shortStopCooldownRemaining--;
     const inGcCooldown = gcCooldownRemaining > 0;
+    const inShortStopCooldown = shortStopCooldownRemaining > 0;
     const shouldEnterShort = regimeAllowShort && !isStrongUp && volConfirmed &&
-      !suppressEntryByHour && !inGcCooldown &&
+      !suppressEntryByHour && !inGcCooldown && !inShortStopCooldown &&
       tradeCount < MAX_TRADES_PER_DAY &&
       (isPullbackShort || isBreakdownShort || (isRsiOverbought && isBbUpper));
 
@@ -745,6 +754,10 @@ export function simulateStockReal(
         shortEntryPrice = 0;
         shortLowWater = 0;
         shortEntryBar = -1;
+        // ② 損切り発動時にクールダウンをセット（利確はクールダウンなし）
+        if (profit < 0 && overrides.shortStopCooldownBars) {
+          shortStopCooldownRemaining = overrides.shortStopCooldownBars;
+        }
       }
     }
 
