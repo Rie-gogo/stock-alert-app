@@ -101,19 +101,24 @@ describe("getLotRatio（銘柄別ロット縮小）", () => {
     expect(getLotRatio("5016")).toBe(REGIME_CONSTANTS.LOT_SMALL);
   });
 
-  it("貢献の大きい追加銘柄（太陽誘電・SUMCO・村田・ソニー）は通常ロット", () => {
+  it("貢献の大きい追加銘柄（太陽誘電・SUMCO・村田）は通常ロット", () => {
     expect(getLotRatio("6976")).toBe(REGIME_CONSTANTS.LOT_NORMAL);
     expect(getLotRatio("3436")).toBe(REGIME_CONSTANTS.LOT_NORMAL);
     expect(getLotRatio("6981")).toBe(REGIME_CONSTANTS.LOT_NORMAL);
-    expect(getLotRatio("6758")).toBe(REGIME_CONSTANTS.LOT_NORMAL);
+  });
+
+  it("バックテストで損失超過が判明した銘柄（三菱重工業・三菱UFJ FG・ソニー）は極小ロット", () => {
+    expect(getLotRatio("7011")).toBe(REGIME_CONSTANTS.LOT_SMALL);
+    expect(getLotRatio("8306")).toBe(REGIME_CONSTANTS.LOT_SMALL);
+    expect(getLotRatio("6758")).toBe(REGIME_CONSTANTS.LOT_SMALL);
   });
 
   it("通常銘柄は通常ロット", () => {
-    expect(getLotRatio("8306")).toBe(REGIME_CONSTANTS.LOT_NORMAL);
+    expect(getLotRatio("8035")).toBe(REGIME_CONSTANTS.LOT_NORMAL); // 東京エレクトロン
   });
 
   it("極小ロット銘柄のロットは通常銘柄より十分小さい", () => {
-    expect(getLotRatio("9984")).toBeLessThan(getLotRatio("8306"));
+    expect(getLotRatio("9984")).toBeLessThan(getLotRatio("8035")); // SBG vs 東京エレクトロン
   });
 });
 

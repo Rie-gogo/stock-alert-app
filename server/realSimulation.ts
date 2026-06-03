@@ -123,7 +123,9 @@ interface RealCandle {
 // 出来高（流動性）重視の方針により除外はせず、損益貢献の小さい銘柄は極小ロットで参加させる
 // 9107(川崎汽船): 海運株。半導体・ハイテク群と値動きの理屈が異なりトレンド系ロジックと相性が悪いため最小ロット化
 // 6723/5803/8316/7203/5016: 20銘柄拡張時のバックテストでトレンド系ロジックと相性が悪く損失超過だったため最小ロット化（出来高は十分なため監視は継続）
-const HIGH_VOL_SYMBOLS = new Set(["9984", "4568", "6526", "9107", "6723", "5803", "8316", "7203", "5016"]); // SBG・第一三共・ソシオネクスト・川崎汽船・ルネサス・フジクラ・三井住友FG・トヨタ・JX金属
+const HIGH_VOL_SYMBOLS = new Set(["9984", "4568", "6526", "9107", "6723", "5803", "8316", "7203", "5016",
+  "7011", "8306", "6758"]); // SBG・第一三共・ソシオネクスト・川崎決船・ルネサス・フジクラ・三井住友 FG・トヨタ・JX金属
+                                  // + 三菱重工業(7011)・三菱UFJ FG(8306)・ソニーグループ(6758): バックテストで損失超過が判明したため極小ロットに変更
 const LOT_NORMAL = 0.49;   // 通常銘柄の建玉比率（資金に対する割合）
 const LOT_SMALL = 0.05;    // 超ボラ/低相性銘柄の建玉比率（極小）
 const CIRCUIT_BREAKER = 20000;   // 1銘柄/日の確定損失がこの額に達したらその日は新規停止
@@ -420,6 +422,8 @@ export interface SimOverrides {
   lunchExitLongMinute?: string;
   /** 改善D': 昕休み前全ポジション手仕まい - この時刻（HH:MM）以降はロング+ショートを強制決済 */
   lunchExitAllMinute?: string;
+  /** 銘柄ロット比率の上書き - 指定した場合はHIGH_VOL_SYMBOLSの判定を無視してこの値を使用 */
+  lotRatio?: number;
 }
 
 export function simulateStockReal(
@@ -469,7 +473,7 @@ export function simulateStockReal(
   // 【動的資金配分】調子スコアに応じた倍率を掛ける。暴走防止に0.5〜1.5倍へクランプし、
   //  建玉比率の上限も0.6（資金の6割）までに制限してリスク量が膨らみすぎないようにする。
   const safeMultiplier = Math.max(0.5, Math.min(1.5, lotMultiplier));
-  const baseLot = HIGH_VOL_SYMBOLS.has(symbol) ? LOT_SMALL : LOT_NORMAL;
+  const baseLot = overrides.lotRatio !== undefined ? overrides.lotRatio : (HIGH_VOL_SYMBOLS.has(symbol) ? LOT_SMALL : LOT_NORMAL);
   const lotRatio = Math.min(0.6, baseLot * safeMultiplier);
 
   // 出来高配列（出来高裏付けゲート用）
