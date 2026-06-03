@@ -158,3 +158,68 @@ describe("12時台エントリー抑制", () => {
     expect(buyAtNoon).toBeFalsy();
   });
 });
+
+describe("下落相場ブレイク売り（戻りが来ない下落相場でも空売りを成立させる）", () => {
+  it("ブレイク売りRSI下限(35)は売られすぎ域(30)より上で、戻り売り下限(55)より下", () => {
+    expect(REGIME_CONSTANTS.SHORT_BREAKDOWN_RSI_MIN).toBeGreaterThan(30);
+    expect(REGIME_CONSTANTS.SHORT_BREAKDOWN_RSI_MIN).toBeLessThan(REGIME_CONSTANTS.SHORT_RSI_MIN);
+  });
+
+  it("市場下落ムード＋下落トレンド継続では、戻り(RSI高)が無くてもブレイク売りが出る", () => {
+    const candles: RealCandle[] = [];
+    for (let i = 0; i < 12; i++) candles.push(mkCandle(i, 1000, { ma5: 1000, ma25: 1000 }));
+    // 下落トレンド・MA5<MA25・MA25割れ・売り優勢(flow<0)・RSIは中位(40前後=戻りは無いが底値圏でもない)
+    for (let i = 12; i < 22; i++) {
+      candles.push(
+        mkCandle(i, 985 - (i - 12), {
+          ma5: 984, ma25: 1000, slope: -0.003, flow: -6000, rsi: 42, volume: 300_000,
+        })
+      );
+    }
+    // 市場全体が明確に下落ムード（mktBias < -0.4%）
+    const res = simulateStockReal("6758", "ソニー", "6758.T", candles, () => -0.02, 3_000_000, 70, 30, 2.0, false);
+    expect(res).not.toBeNull();
+    const breakdownSig = (res!.signals ?? []).find(
+      s => s.type === "short" && s.reason?.includes("ブレイク売り")
+    );
+    expect(breakdownSig).toBeTruthy();
+  });
+
+  it("市場が下落ムードでない（横ばい/上昇）ときはブレイク売りが発火しない", () => {
+    const candles: RealCandle[] = [];
+    for (let i = 0; i < 12; i++) candles.push(mkCandle(i, 1000, { ma5: 1000, ma25: 1000 }));
+    for (let i = 12; i < 22; i++) {
+      candles.push(
+        mkCandle(i, 985 - (i - 12), {
+          ma5: 984, ma25: 1000, slope: -0.003, flow: -6000, rsi: 42, volume: 300_000,
+        })
+      );
+    }
+    // 市場全体は横ばい（mktBias=0）→ レジームゲートでショート全面禁止にはならないが、
+    // ブレイク売りは mktDown を必須にしているため発火しない（戻り売り条件もRSI低で不成立）
+    const res = simulateStockReal("6758", "ソニー", "6758.T", candles, () => 0.0, 3_000_000, 70, 30, 2.0, false);
+    expect(res).not.toBeNull();
+    const breakdownSig = (res!.signals ?? []).find(
+      s => s.type === "short" && s.reason?.includes("ブレイク売り")
+    );
+    expect(breakdownSig).toBeFalsy();
+  });
+
+  it("売られすぎの底値圏(RSI<35)ではブレイク売りで飛び乗らない", () => {
+    const candles: RealCandle[] = [];
+    for (let i = 0; i < 12; i++) candles.push(mkCandle(i, 1000, { ma5: 1000, ma25: 1000 }));
+    for (let i = 12; i < 22; i++) {
+      candles.push(
+        mkCandle(i, 980 - (i - 12), {
+          ma5: 979, ma25: 1000, slope: -0.003, flow: -6000, rsi: 28, volume: 300_000,
+        })
+      );
+    }
+    const res = simulateStockReal("6758", "ソニー", "6758.T", candles, () => -0.02, 3_000_000, 70, 30, 2.0, false);
+    expect(res).not.toBeNull();
+    const breakdownSig = (res!.signals ?? []).find(
+      s => s.type === "short" && s.reason?.includes("ブレイク売り")
+    );
+    expect(breakdownSig).toBeFalsy();
+  });
+});

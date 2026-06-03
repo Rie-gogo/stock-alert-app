@@ -21,11 +21,20 @@ import type { TradeRecord } from "./simulation";
 export interface PortfolioConfig {
   maxConcurrent: number;
   maxPerSector: number;
+  /** 動的資金配分: 枠が競合したとき、その日ここまでの成績が良い（調子の良い）銘柄を優先採用する。 */
+  momentumAllocation?: boolean;
+  /** デイリーストップ: 口座全体の当日確定損益がこの額(円・負値)以下になったら、その日は新規建てを全停止。0/undefinedで無効。 */
+  dailyLossLimit?: number;
+  /** 利益保護ストップ: 口座全体の当日確定損益がこの額(円・正値)以上になったら、その日は新規建てを全停止。0/undefinedで無効。 */
+  dailyProfitTarget?: number;
 }
 
 export const DEFAULT_PORTFOLIO_CONFIG: PortfolioConfig = {
   maxConcurrent: MAX_CONCURRENT_POSITIONS,
   maxPerSector: MAX_PER_SECTOR,
+  dailyLossLimit: 15000,  // 口座全体の当日確定損益が-15,000円に達したらその日は新規建てを全停止（暴落日の保険）。
+  dailyProfitTarget: 0,   // 利益目標ストップは無効。利を伸ばすトレイリングと相性が悪く、早く止めると取り逃すため。
+  momentumAllocation: true, // 枠競合時はその日調子の良い銘柄を優先採用。
 };
 
 /** 時刻文字列 "HH:MM" を分に変換（並び替え用） */
@@ -59,6 +68,9 @@ export interface PortfolioResult {
   maxConcurrentObserved: number; // 実際に同時保有した最大数
   rejectionsByConcurrency: number;
   rejectionsBySector: number;
+  dailyStopTriggered: boolean;   // デイリーストップ（損失上限/利益保護）が発動したか
+  dailyStopReason: "" | "loss_limit" | "profit_target"; // 発動理由
+  rejectionsByDailyStop: number; // デイリーストップで見送った建て回数
 }
 
 /**
@@ -99,6 +111,9 @@ export function applyPortfolioRules(
   const sectorCount = new Map<string, number>();
   // 採用された建玉の銘柄集合（その銘柄の決済を採用すべきか判定するため）
   const acceptedOpenSymbols = new Set<string>();
+  // 動的資金配分: 各銘柄のその日ここまでの確定損益（勢いスコア）
+  const runningProfitBySymbol = new Map<string, number>();
+  const useMomentum = config.momentumAllocation === true;
 
   const result: PortfolioResult = {
     acceptedProfit: 0,
@@ -110,12 +125,59 @@ export function applyPortfolioRules(
     maxConcurrentObserved: 0,
     rejectionsByConcurrency: 0,
     rejectionsBySector: 0,
+    dailyStopTriggered: false,
+    dailyStopReason: "",
+    rejectionsByDailyStop: 0,
   };
 
-  for (const ev of events) {
+  // デイリーストップの設定（正の値のみ有効）
+  const lossLimit = config.dailyLossLimit && config.dailyLossLimit > 0 ? config.dailyLossLimit : 0;
+  const profitTarget = config.dailyProfitTarget && config.dailyProfitTarget > 0 ? config.dailyProfitTarget : 0;
+  // 一旦発動したらその日は新規建てを全停止（保有中の決済はそのまま許可）
+  let newEntriesHalted = false;
+
+  // 動的資金配分が有効なら、同一時刻の建て候補を「その日ここまでの成績が良い順」に並べ替える。
+  // 決済→建ての順序は維持しつつ、同分・同種別(open)内のみ勢いスコア降順で優先採用させる。
+  if (useMomentum) {
+    // 分ごとにグループ化し、open グループ内を runningProfit 降順に並べ替える必要があるが、
+    // runningProfit は処理進行に伴い変化するため、ループ内で動的に決定する（下の selectNextOpen で対応）。
+  }
+
+  // 同一時刻の open 候補を勢いスコア順に処理するためのインデックスベース走査
+  let idx = 0;
+  while (idx < events.length) {
+    // 同一 minute かつ同一 kind のブロックを取り出す
+    const blockStart = idx;
+    const blockMinute = events[idx].minute;
+    const blockKind = events[idx].kind;
+    let blockEnd = idx;
+    while (
+      blockEnd < events.length &&
+      events[blockEnd].minute === blockMinute &&
+      events[blockEnd].kind === blockKind
+    ) {
+      blockEnd++;
+    }
+    let block = events.slice(blockStart, blockEnd);
+    // 動的配分: open ブロックは、その日ここまでの成績が良い銘柄を優先（降順）
+    if (useMomentum && blockKind === "open" && block.length > 1) {
+      block = block.slice().sort((a, b) => {
+        const pa = runningProfitBySymbol.get(a.symbol) ?? 0;
+        const pb = runningProfitBySymbol.get(b.symbol) ?? 0;
+        if (pb !== pa) return pb - pa; // 成績の良い銘柄を先に
+        return a.seq - b.seq; // 同点は元順で安定化
+      });
+    }
+    for (const ev of block) {
     if (ev.kind === "open") {
       // すでにこの銘柄を保有中なら、元シミュの追加建て（通常は起きない）はスキップ
       if (heldSymbols.has(ev.symbol)) continue;
+
+      // デイリーストップ発動中は、以降の新規建てを全て見送る
+      if (newEntriesHalted) {
+        result.rejectionsByDailyStop++;
+        continue;
+      }
 
       const concurrencyFull = heldSymbols.size >= config.maxConcurrent;
       const sectorFull = (sectorCount.get(ev.sector) ?? 0) >= config.maxPerSector;
@@ -148,12 +210,31 @@ export function applyPortfolioRules(
         heldSymbols.delete(ev.symbol);
         acceptedOpenSymbols.delete(ev.symbol);
         sectorCount.set(ev.sector, Math.max(0, (sectorCount.get(ev.sector) ?? 1) - 1));
+
+        // デイリーストップ判定（確定損益が更新されるのは決済時のみ）
+        if (!newEntriesHalted) {
+          if (lossLimit > 0 && result.acceptedProfit <= -lossLimit) {
+            newEntriesHalted = true;
+            result.dailyStopTriggered = true;
+            result.dailyStopReason = "loss_limit";
+          } else if (profitTarget > 0 && result.acceptedProfit >= profitTarget) {
+            newEntriesHalted = true;
+            result.dailyStopTriggered = true;
+            result.dailyStopReason = "profit_target";
+          }
+        }
+        // 勢いスコア更新（採用された確定損益を銘柄別に加算）
+        runningProfitBySymbol.set(ev.symbol, (runningProfitBySymbol.get(ev.symbol) ?? 0) + ev.profit);
       } else {
         // 不採用だった建玉の決済 → 見送り損益として集計
         result.skippedProfit += ev.profit;
         result.skippedTrades++;
+        // 見送りでも勢いスコアには反映（その銘柄の実力を評価するため）
+        runningProfitBySymbol.set(ev.symbol, (runningProfitBySymbol.get(ev.symbol) ?? 0) + ev.profit);
       }
     }
+    } // end for (const ev of block)
+    idx = blockEnd;
   }
 
   return result;
