@@ -7,6 +7,7 @@
  */
 import { callDataApi } from "../server/_core/dataApi";
 import { TARGET_STOCKS } from "../shared/stocks";
+import { applyPortfolioRules, type PerStockTrades } from "../server/portfolio";
 import {
   simulateStockReal,
   computeMarketEfficiency,
@@ -178,6 +179,7 @@ async function main() {
   const symbolAgg = new Map<string, { name: string; profit: number; win: number; loss: number; trades: number }>();
   const reasonAgg = new Map<string, { profit: number; win: number; loss: number; count: number }>();
   const hourAgg = new Map<string, { profit: number; win: number; loss: number; count: number }>();
+  const portfolioDaily: Array<{ day: string; accepted: number; skipped: number; win: number; loss: number; maxConc: number }> = [];
 
   for (const day of allDays) {
     // この日に十分なバーがある銘柄だけを対象（寄り後の最低本数を確保）
@@ -202,12 +204,14 @@ async function main() {
     const rangeBound = isRangeBoundDay(eff);
 
     let dayProfit = 0, dayWin = 0, dayLoss = 0;
+    const perStockToday: PerStockTrades[] = [];
     for (const s of TARGET_STOCKS) {
       const candles = candleMap.get(s.symbol);
       if (!candles) continue;
       const res = simulateStockReal(s.symbol, s.ticker, s.name, candles, marketBiasByProgress, 3_000_000, 70, 30, 2.0, rangeBound);
       if (!res) continue;
       dayProfit += res.profitAmount; dayWin += res.winCount; dayLoss += res.lossCount;
+      perStockToday.push({ symbol: s.symbol, trades: res.trades });
 
       const agg = symbolAgg.get(s.symbol) ?? { name: s.name, profit: 0, win: 0, loss: 0, trades: 0 };
       agg.profit += res.profitAmount; agg.win += res.winCount; agg.loss += res.lossCount; agg.trades += res.tradesCount;
@@ -237,9 +241,13 @@ async function main() {
         }
       }
     }
+    // 【ハイブリッド方式】同時保有3銘柄・同業種2銘柄に制限した後の採用損益
+    const pf = applyPortfolioRules(perStockToday);
+    portfolioDaily.push({ day, accepted: pf.acceptedProfit, skipped: pf.skippedProfit, win: pf.acceptedWins, loss: pf.acceptedLosses, maxConc: pf.maxConcurrentObserved });
+
     const dayWinRate = (dayWin + dayLoss) > 0 ? dayWin / (dayWin + dayLoss) : 0;
     dailyRows.push([day, eff.toFixed(3), String(rangeBound), Math.round(dayProfit), dayWin, dayLoss, dayWinRate.toFixed(3)].join(","));
-    console.log(`[analyze] ${day}: profit=${Math.round(dayProfit)} win=${dayWin} loss=${dayLoss} eff=${eff.toFixed(2)} range=${rangeBound}`);
+    console.log(`[analyze] ${day}: all=${Math.round(dayProfit)} hybrid=${Math.round(pf.acceptedProfit)} (skip=${Math.round(pf.skippedProfit)}) maxConc=${pf.maxConcurrentObserved} eff=${eff.toFixed(2)}`);
   }
 
   // 出力
@@ -271,6 +279,23 @@ async function main() {
     hourRows.push([h, Math.round(a.profit), a.win, a.loss, a.count, wr.toFixed(3)].join(","));
   }
   fs.writeFileSync(path.join(outDir, "by_hour.csv"), hourRows.join("\n"), "utf8");
+
+  // 【ハイブリッド方式 vs 全銘柄合計】の比較
+  const tradedDays = portfolioDaily.length;
+  const allTotal = dailyRows.slice(1).reduce((s, row) => s + Number(row.split(",")[3]), 0);
+  const hybridTotal = portfolioDaily.reduce((s, d) => s + d.accepted, 0);
+  const hybridWin = portfolioDaily.reduce((s, d) => s + d.win, 0);
+  const hybridLoss = portfolioDaily.reduce((s, d) => s + d.loss, 0);
+  const pfRows = ["date,hybridAccepted,skipped,win,loss,maxConcurrent"];
+  for (const d of portfolioDaily) pfRows.push([d.day, Math.round(d.accepted), Math.round(d.skipped), d.win, d.loss, d.maxConc].join(","));
+  fs.writeFileSync(path.join(outDir, "portfolio_daily.csv"), pfRows.join("\n"), "utf8");
+
+  console.log("\n===== 全銘柄合計 vs ハイブリッド（3銘柄厳選） =====");
+  console.log(`Traded days: ${tradedDays}`);
+  console.log(`【全銘柄合計】  total=${Math.round(allTotal)}  avg/day=${Math.round(allTotal / tradedDays)}`);
+  console.log(`【ハイブリッド】 total=${Math.round(hybridTotal)}  avg/day=${Math.round(hybridTotal / tradedDays)}  win/loss=${hybridWin}/${hybridLoss}  winRate=${((hybridWin/(hybridWin+hybridLoss||1))*100).toFixed(1)}%`);
+  console.log("\nPortfolio daily:");
+  console.log(pfRows.join("\n"));
 
   console.log("\n===== SUMMARY =====");
   console.log("By symbol (worst first):");

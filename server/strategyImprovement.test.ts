@@ -95,3 +95,66 @@ describe("デッドクロス即決済の廃止", () => {
     expect(deadCrossExit).toBeFalsy();
   });
 });
+
+describe("空売り精度向上の定数", () => {
+  it("空売りRSI下限は中立(50)より高い（戻りを売る）", () => {
+    expect(REGIME_CONSTANTS.SHORT_RSI_MIN).toBeGreaterThan(50);
+  });
+  it("空売りのMA25近辺判定幅は小さい（戻り売りの好位置に限定）", () => {
+    expect(REGIME_CONSTANTS.SHORT_NEAR_MA).toBeLessThanOrEqual(0.01);
+  });
+  it("12時台が新規エントリー抑制の対象に含まれる", () => {
+    expect(REGIME_CONSTANTS.SUPPRESS_ENTRY_HOURS.has(12)).toBe(true);
+  });
+});
+
+describe("空売りエントリー精度（戻り売り厳選）", () => {
+  it("売られすぎ(RSI低)では追い空売りしない", () => {
+    const candles: RealCandle[] = [];
+    for (let i = 0; i < 12; i++) candles.push(mkCandle(i, 1000, { ma5: 1000, ma25: 1000 }));
+    // 下落トレンドだがRSIが低い（売られすぎ）→ 空売りすべきでない
+    for (let i = 12; i < 20; i++) {
+      candles.push(mkCandle(i, 990, { ma5: 990, ma25: 1000, slope: -0.002, flow: -5000, rsi: 25, volume: 300_000 }));
+    }
+    const res = simulateStockReal("6758", "ソニー", "6758.T", candles, () => -0.01, 3_000_000, 70, 30, 2.0, false);
+    expect(res).not.toBeNull();
+    const shorts = (res!.trades ?? []).filter(t => t.type === "short");
+    // RSIが低い（売られすぎ）局面では戻り売り条件(RSI>=55)を満たさず空売りが出ない
+    expect(shorts.length).toBe(0);
+  });
+
+  it("戻り売り（下落トレンド+RSI高+MA25近辺）では空売りが出る", () => {
+    const candles: RealCandle[] = [];
+    for (let i = 0; i < 12; i++) candles.push(mkCandle(i, 1000, { ma5: 1000, ma25: 1000 }));
+    // 下落トレンド中にMA25近辺まで戻り、RSIがまだ高い → 戻り売り
+    candles.push(mkCandle(12, 1000, { ma5: 998, ma25: 1000, slope: -0.002, flow: -5000, rsi: 60, volume: 300_000 }));
+    for (let i = 13; i < 20; i++) {
+      candles.push(mkCandle(i, 985, { ma5: 985, ma25: 1000, slope: -0.002, flow: -3000, rsi: 45 }));
+    }
+    const res = simulateStockReal("6758", "ソニー", "6758.T", candles, () => -0.01, 3_000_000, 70, 30, 2.0, false);
+    expect(res).not.toBeNull();
+    const shortSig = (res!.signals ?? []).find(s => s.type === "short" && s.reason?.includes("戻り売り"));
+    expect(shortSig).toBeTruthy();
+  });
+});
+
+describe("12時台エントリー抑制", () => {
+  it("12時台ではゴールデンクロスでも新規買いしない", () => {
+    const candles: RealCandle[] = [];
+    // 12:00台になるよう、序盤に十分な本数を積む（9:00開始, 1分足: index=180で12:00）
+    for (let i = 0; i < 181; i++) candles.push(mkCandle(i, 1000, { ma5: 1000, ma25: 1000, volume: 100_000 }));
+    // index 181 (=12:01) でゴールデンクロス相当の強い買いシグナル
+    candles[180] = mkCandle(180, 1000, { ma5: 999, ma25: 1000 });
+    candles.push(mkCandle(181, 1001, { ma5: 1001, ma25: 1000, slope: 0.002, flow: 5000, volume: 300_000 }));
+    for (let i = 182; i < 190; i++) candles.push(mkCandle(i, 1001, { ma5: 1001, ma25: 1000 }));
+
+    // 12:01 のローソク足の time が "12:01" であることを確認
+    expect(candles[181].time.startsWith("12:")).toBe(true);
+
+    const res = simulateStockReal("6981", "村田製作所", "6981.T", candles, () => 0.0, 3_000_000, 70, 30, 2.0, false);
+    expect(res).not.toBeNull();
+    // 12時台に発生した買いが無いこと（抑制されている）
+    const buyAtNoon = (res!.trades ?? []).find(t => t.type === "buy" && t.time?.startsWith("12:"));
+    expect(buyAtNoon).toBeFalsy();
+  });
+});
