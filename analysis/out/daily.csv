@@ -1,0 +1,6 @@
+date,marketEfficiency,rangeBoundDay,totalProfit,winCount,lossCount,winRate
+2026-05-28,0.378,false,66100,4,3,0.571
+2026-05-29,0.492,false,13900,3,1,0.750
+2026-06-01,0.595,false,-12000,2,2,0.500
+2026-06-02,0.341,false,-2200,0,2,0.000
+2026-06-03,0.378,false,-28900,0,3,0.000

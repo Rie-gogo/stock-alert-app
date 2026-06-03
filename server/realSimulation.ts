@@ -104,9 +104,16 @@ const HIGH_VOL_SYMBOLS = new Set(["9984", "4568", "6526", "9107", "6723", "5803"
 const LOT_NORMAL = 0.49;   // 通常銘柄の建玉比率（資金に対する割合）
 const LOT_SMALL = 0.05;    // 超ボラ/低相性銘柄の建玉比率（極小）
 const CIRCUIT_BREAKER = 20000;   // 1銘柄/日の確定損失がこの額に達したらその日は新規停止
-const MAX_TRADES_PER_DAY = 3;    // 1銘柄/日の最大取引回数
+const MAX_TRADES_PER_DAY = 4;    // 1銘柄/日の最大取引回数（機会を増やすため3→4）
 const HIGH_VOL_DAY_THRESHOLD = 0.08; // 当日値幅がこの割合以上なら「超高ボラ日」= ショート禁止
-const WARMUP_BARS = 15;          // 寄り後この本数はエントリーしない（レジームが固まるまで様子見）
+const WARMUP_BARS = 10;           // 寄り後この本数はエントリーしない（15→10で機会を増やす）
+// --- 損切り・トレイリング利確（早く損切り・利を伸ばす）---
+const BREAKEVEN_TRIGGER = 0.005;  // 含み益が+0.5%を超えたら損切りを建値（同値）に引き上げる
+const TRAIL_TRIGGER = 0.01;       // 含み益が+1.0%を超えたらトレイリング開始
+const TRAIL_GAP = 0.005;          // ピークからこの幅(0.5%)下落したら利確
+// --- 押し目買い（高値づかみ回避: 上昇トレンド中の一時的な押しを拾う）---
+const PULLBACK_RSI = 45;          // 上昇トレンド中にRSIがこの値以下なら押し目候補
+const PULLBACK_NEAR_MA = 0.004;   // 価格がMA25からこの範囲内(±0.4%)なら押し目とみなす
 const MARKET_REGIME_THRESHOLD = 0.004; // 市場全体の地合い判定の閾値(±0.4%)
 const SLOPE_LOOKBACK = 25;       // MA25傾きを測る基準（25本=約50分前）
 const SLOPE_THRESHOLD = 0.0003;  // トレンド方向と認定する傾きの最小値
@@ -125,6 +132,11 @@ export const REGIME_CONSTANTS = {
   MARKET_REGIME_THRESHOLD,
   SLOPE_THRESHOLD,
   RANGE_EFFICIENCY_THRESHOLD,
+  BREAKEVEN_TRIGGER,
+  TRAIL_TRIGGER,
+  TRAIL_GAP,
+  PULLBACK_RSI,
+  PULLBACK_NEAR_MA,
 };
 
 /**
@@ -339,7 +351,7 @@ export function simulateStockReal(
   initialCapital = 3_000_000,
   rsiUpper = 70,
   rsiLower = 30,
-  stopLossPercent = 1.5,
+  stopLossPercent = 2.0,
   skipTradingRangeDay = false
 ): (StockSimResult & { isRealData: boolean }) | null {
   // シミュレーション実行
@@ -349,9 +361,11 @@ export function simulateStockReal(
   // ロングポジション
   let longShares = 0;
   let longEntryPrice = 0;
+  let longHighWater = 0;  // ロング保有中の最高値（トレイリング利確用）
   // ショートポジション（空売り）
   let shortShares = 0;
   let shortEntryPrice = 0;
+  let shortLowWater = 0;  // ショート保有中の最安値（トレイリング利確用）
 
   let winCount = 0;
   let lossCount = 0;
@@ -432,9 +446,13 @@ export function simulateStockReal(
     // 出来高裏付け: エントリー足の出来高が直近平均を上回っているか（薄商いのダマシを回避）
     const volConfirmed = isVolumeConfirmed(curr.volume, trailingAvgVolume(volumes, i, 10));
 
+    // 押し目買い: 上昇トレンド(slope>0)中にRSIが一時的に下がり、価格がMA25近辺まで押した場面を拾う（高値づかみ回避）
+    const nearMA25 = curr.ma25 > 0 && Math.abs(curr.close - curr.ma25) / curr.ma25 <= PULLBACK_NEAR_MA;
+    const isPullbackBuy = slope > SLOPE_THRESHOLD && curr.rsi <= PULLBACK_RSI && nearMA25 && curr.close >= curr.ma25;
+
     const shouldBuyLong = regimeAllowLong && !isStrongDown && volConfirmed &&
       tradeCount < MAX_TRADES_PER_DAY &&
-      (isGoldenCross || (isRsiOversold && isBbLower));
+      (isGoldenCross || (isRsiOversold && isBbLower) || isPullbackBuy);
 
     if (longShares === 0 && shortShares === 0 && shouldBuyLong) {
       const maxSpend = capital * lotRatio; // レジーム/銘柄に応じた建玉
@@ -443,31 +461,57 @@ export function simulateStockReal(
         const totalAmount = shares * curr.close;
         longShares = shares;
         longEntryPrice = curr.close;
+        longHighWater = curr.close;  // トレイリング用の最高値を初期化
         capital -= totalAmount;
         const buyReason = isGoldenCross
           ? `ゴールデンクロス (MA5:${curr.ma5?.toFixed(1)} > MA25:${curr.ma25?.toFixed(1)})`
+          : isPullbackBuy
+          ? `押し目買い (上昇トレンド中RSI:${curr.rsi?.toFixed(1)}、MA25近辺)`
           : `RSI売られすぎ+BB下限 (RSI:${curr.rsi?.toFixed(1)}, BB下:${curr.bbLower?.toFixed(1)})`;
         trades.push({ time: curr.time, type: "buy", price: curr.close, shares, totalAmount });
         signals.push({ time: curr.time, type: "buy", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: buyReason });
       }
     }
 
-    // ロング損切り
-    if (longShares > 0 && curr.close <= longEntryPrice * (1 - stopLossRatio)) {
-      const totalAmount = longShares * curr.close;
-      const profit = totalAmount - longShares * longEntryPrice;
-      capital += totalAmount;
-      lossCount++;
-      realizedPnl += profit; tradeCount++;
-      if (realizedPnl <= -CIRCUIT_BREAKER) halted = true; // サーキットブレーカー
-      trades.push({ time: curr.time, type: "sell", price: curr.close, shares: longShares, totalAmount, profit, profitRate: profit / (longShares * longEntryPrice) });
-      signals.push({ time: curr.time, type: "sell", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: `損切り (${stopLossPercent}%下落, 入荷:${longEntryPrice.toFixed(1)}→現在:${curr.close.toFixed(1)})` });
-      longShares = 0;
-      longEntryPrice = 0;
+    // ロング損切り＋トレイリング利確（早く損切り・利を伸ばす）
+    if (longShares > 0) {
+      // 最高値を更新
+      if (curr.close > longHighWater) longHighWater = curr.close;
+      const gain = (longHighWater - longEntryPrice) / longEntryPrice;  // ピークでの含み益率
+      // 動的損切りラインを決定
+      let stopPrice = longEntryPrice * (1 - stopLossRatio);  // 初期は固定損切り
+      let stopReason = `損切り (${stopLossPercent}%下落)`;
+      if (gain >= TRAIL_TRIGGER) {
+        // 含み益+1%超: ピークからTRAIL_GAP下でトレイル
+        stopPrice = longHighWater * (1 - TRAIL_GAP);
+        stopReason = `トレイリング利確 (ピーク:${longHighWater.toFixed(1)}から${(TRAIL_GAP*100).toFixed(1)}%下落)`;
+      } else if (gain >= BREAKEVEN_TRIGGER) {
+        // 含み益+0.5%超: 損切りを建値（同値）に引き上げ
+        stopPrice = Math.max(stopPrice, longEntryPrice);
+        stopReason = `同値損切り (建値ストップ)`;
+      }
+      if (curr.close <= stopPrice) {
+        const totalAmount = longShares * curr.close;
+        const profit = totalAmount - longShares * longEntryPrice;
+        capital += totalAmount;
+        if (profit > 0) winCount++; else lossCount++;
+        realizedPnl += profit; tradeCount++;
+        if (realizedPnl <= -CIRCUIT_BREAKER) halted = true; // サーキットブレーカー
+        trades.push({ time: curr.time, type: "sell", price: curr.close, shares: longShares, totalAmount, profit, profitRate: profit / (longShares * longEntryPrice) });
+        signals.push({ time: curr.time, type: "sell", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: `${stopReason} (入荷:${longEntryPrice.toFixed(1)}→現在:${curr.close.toFixed(1)})` });
+        longShares = 0;
+        longEntryPrice = 0;
+        longHighWater = 0;
+      }
     }
 
-    // ロング利確・手仕舞い：デッドクロス or RSI買われすぎ+BB上限
-    const shouldSellLong = isDeadCross || (isRsiOverbought && isBbUpper && !isStrongUp);
+    // ロング利確・手仕舞い
+    // 【重要】デッドクロスでの即手仕舞いは廃止。
+    // バックテストでデッドクロス決済は8件全敗(-43,200円)、その多くが-0.1～0.3%の微損。
+    // これは横ばいでの往復ビンタであり、デッドクロスで逆るより損切り(0.8%)・同値・トレイリングに任せた方が良い。
+    // デッドクロスは「新規エントリーを止める」フィルターとしてのみ機能させる（下記 isStrongDown でカバー）。
+    // 手仕舞いはRSI買われすぎ+BB上限（勝率60%）だけに限定。
+    const shouldSellLong = isRsiOverbought && isBbUpper && !isStrongUp;
 
     if (longShares > 0 && shouldSellLong) {
       const totalAmount = longShares * curr.close;
@@ -476,13 +520,12 @@ export function simulateStockReal(
       if (profit > 0) winCount++; else lossCount++;
       realizedPnl += profit; tradeCount++;
       if (realizedPnl <= -CIRCUIT_BREAKER) halted = true;
-      const sellReason = isDeadCross
-        ? `デッドクロス (MA5:${curr.ma5?.toFixed(1)} < MA25:${curr.ma25?.toFixed(1)})`
-        : `RSI買われすぎ+BB上限 (RSI:${curr.rsi?.toFixed(1)}, BB上:${curr.bbUpper?.toFixed(1)})`;
+      const sellReason = `RSI買われすぎ+BB上限 (RSI:${curr.rsi?.toFixed(1)}, BB上:${curr.bbUpper?.toFixed(1)})`;
       trades.push({ time: curr.time, type: "sell", price: curr.close, shares: longShares, totalAmount, profit, profitRate: profit / (longShares * longEntryPrice) });
       signals.push({ time: curr.time, type: "sell", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: sellReason });
       longShares = 0;
       longEntryPrice = 0;
+      longHighWater = 0;
     }
 
     // ============================================================
@@ -501,6 +544,7 @@ export function simulateStockReal(
         const marginRequired = shares * curr.close;
         shortShares = shares;
         shortEntryPrice = curr.close;
+        shortLowWater = curr.close;  // トレイリング用の最安値を初期化
         capital -= marginRequired; // 証拠金を確保
         const shortReason = isDeadCross
           ? `空売りエントリー: デッドクロス (MA5:${curr.ma5?.toFixed(1)} < MA25:${curr.ma25?.toFixed(1)})`
@@ -510,18 +554,34 @@ export function simulateStockReal(
       }
     }
 
-    // ショート損切り：エントリー価格からstopLossPercent%上昇
-    if (shortShares > 0 && curr.close >= shortEntryPrice * (1 + stopLossRatio)) {
-      const profit = (shortEntryPrice - curr.close) * shortShares;
-      const marginReturn = shortShares * shortEntryPrice;
-      capital += marginReturn + profit;
-      lossCount++;
-      realizedPnl += profit; tradeCount++;
-      if (realizedPnl <= -CIRCUIT_BREAKER) halted = true;
-      trades.push({ time: curr.time, type: "cover", price: curr.close, shares: shortShares, totalAmount: shortShares * curr.close, profit, profitRate: profit / (shortShares * shortEntryPrice) });
-      signals.push({ time: curr.time, type: "cover", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: `空売り損切り (エントリー:${shortEntryPrice.toFixed(1)} → ${curr.close.toFixed(1)})` });
-      shortShares = 0;
-      shortEntryPrice = 0;
+    // ショート損切り＋トレイリング利確（早く損切り・利を伸ばす）
+    if (shortShares > 0) {
+      // 最安値を更新
+      if (curr.close < shortLowWater) shortLowWater = curr.close;
+      const gain = (shortEntryPrice - shortLowWater) / shortEntryPrice;  // ボトムでの含み益率
+      // 動的損切りラインを決定（ショートは上昇で損）
+      let stopPrice = shortEntryPrice * (1 + stopLossRatio);  // 初期は固定損切り
+      let stopReason = `空売り損切り (${stopLossPercent}%上昇)`;
+      if (gain >= TRAIL_TRIGGER) {
+        stopPrice = shortLowWater * (1 + TRAIL_GAP);
+        stopReason = `空売りトレイリング利確 (ボトム:${shortLowWater.toFixed(1)}から${(TRAIL_GAP*100).toFixed(1)}%上昇)`;
+      } else if (gain >= BREAKEVEN_TRIGGER) {
+        stopPrice = Math.min(stopPrice, shortEntryPrice);
+        stopReason = `空売り同値損切り (建値ストップ)`;
+      }
+      if (curr.close >= stopPrice) {
+        const profit = (shortEntryPrice - curr.close) * shortShares;
+        const marginReturn = shortShares * shortEntryPrice;
+        capital += marginReturn + profit;
+        if (profit > 0) winCount++; else lossCount++;
+        realizedPnl += profit; tradeCount++;
+        if (realizedPnl <= -CIRCUIT_BREAKER) halted = true;
+        trades.push({ time: curr.time, type: "cover", price: curr.close, shares: shortShares, totalAmount: shortShares * curr.close, profit, profitRate: profit / (shortShares * shortEntryPrice) });
+        signals.push({ time: curr.time, type: "cover", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: `${stopReason} (エントリー:${shortEntryPrice.toFixed(1)} → ${curr.close.toFixed(1)})` });
+        shortShares = 0;
+        shortEntryPrice = 0;
+        shortLowWater = 0;
+      }
     }
 
     // ショート利確・買い戻し：ゴールデンクロス or RSI売られすぎ+BB下限
@@ -541,6 +601,7 @@ export function simulateStockReal(
       signals.push({ time: curr.time, type: "cover", price: curr.close, ma5: curr.ma5, ma25: curr.ma25, rsi: curr.rsi, reason: coverReason });
       shortShares = 0;
       shortEntryPrice = 0;
+      shortLowWater = 0;
     }
   }
 
@@ -614,7 +675,7 @@ export async function generateRealDailyReport(
   dateStr: string,
   rsiUpper = 70,
   rsiLower = 30,
-  stopLossPercent = 1.5
+  stopLossPercent = 2.0
 ) {
   console.log(`[realSimulation] Starting real data simulation for ${dateStr}`);
 
