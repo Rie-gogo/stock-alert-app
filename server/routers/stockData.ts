@@ -9,6 +9,34 @@ import { callDataApi } from "../_core/dataApi";
 import { TRPCError } from "@trpc/server";
 import { TARGET_STOCKS, getStockName, getSector, TICKER_BY_SYMBOL } from "../../shared/stocks";
 
+// ---- データAPI呼び出し（レート制限の自動リトライ付き） ----
+
+const _sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** レスポンスがレート制限エラーかどうかを判定する */
+function isRateLimited(resp: unknown): boolean {
+  if (resp && typeof resp === "object" && "message" in resp) {
+    const msg = String((resp as { message?: unknown }).message ?? "");
+    return /rate limit/i.test(msg);
+  }
+  return false;
+}
+
+/**
+ * Yahoo Finance のチャートを取得する。
+ * データAPIは1秒あたりのレート制限が厳しいため、
+ * レート制限エラーを受け取ったら待機して最大2回までリトライする。
+ */
+async function fetchStockChart(query: Record<string, unknown>): Promise<unknown> {
+  let lastResp: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await _sleep(700 * attempt);
+    lastResp = await callDataApi("YahooFinance/get_stock_chart", { query });
+    if (!isRateLimited(lastResp)) return lastResp;
+  }
+  return lastResp;
+}
+
 // ---- テクニカル指標計算 ----
 
 function calcMA(data: number[], period: number): (number | null)[] {
@@ -74,6 +102,8 @@ function calcBollinger(
 // ---- シグナル検出（アプリと同じロジック） ----
 export interface CandleWithSignal {
   time: string;
+  /** 営業日キー（JSTのYYYY-MM-DD）。最新営業日の足だけを抽出する用途で使う */
+  dayKey?: string;
   timestamp: number;
   open: number;
   high: number;
@@ -135,6 +165,80 @@ function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLower = 30
   }
 
   return result;
+}
+
+// ---- ローソク足構築（null補完つき） ----
+
+type QuoteArrays = {
+  open: (number | null)[];
+  high: (number | null)[];
+  low: (number | null)[];
+  close: (number | null)[];
+  volume: (number | null)[];
+};
+
+/**
+ * Yahoo Finance の quote 配列からローソク足を構築する。
+ * 寄り付き直後は当日の足の close 等が null のことがあるため、
+ * 「open も close も両方 null」の足だけスキップし、
+ * 片方だけ欠けている場合は前の足の終値や同じ足の値で補完する。
+ * これにより寄り付き直後でも空配列にならず描画を継続できる。
+ */
+export function buildCandlesFromQuotes(
+  timestamps: number[],
+  quotes: QuoteArrays
+): CandleWithSignal[] {
+  const rawCandles: CandleWithSignal[] = [];
+  let lastClose: number | null = null;
+
+  for (let i = 0; i < timestamps.length; i++) {
+    const o = quotes.open[i];
+    const h = quotes.high[i];
+    const l = quotes.low[i];
+    const c = quotes.close[i];
+    const v = quotes.volume[i];
+
+    // open も close も無い足は実体が無いのでスキップ
+    if ((o === null || o === undefined) && (c === null || c === undefined)) {
+      continue;
+    }
+
+    // 欠けている値を補完（close 優先、無ければ open、それも無ければ前足の終値）
+    const closeVal: number | null = c ?? o ?? lastClose;
+    const openVal: number | null = o ?? lastClose ?? closeVal;
+    if (closeVal === null || closeVal === undefined || openVal === null || openVal === undefined) {
+      continue;
+    }
+    const highVal = h ?? Math.max(openVal, closeVal);
+    const lowVal = l ?? Math.min(openVal, closeVal);
+
+    // JSTに換算して時刻文字列と「営業日キー（JSTのYYYY-MM-DD）」を作る
+    const jstMs = timestamps[i] * 1000 + 9 * 60 * 60 * 1000;
+    const d = new Date(jstMs);
+    const jstHour = d.getUTCHours();
+    const timeStr = `${String(jstHour).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+    const dayKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+
+    rawCandles.push({
+      time: timeStr,
+      dayKey,
+      timestamp: timestamps[i] * 1000,
+      open: Math.round(openVal * 10) / 10,
+      high: Math.round(highVal * 10) / 10,
+      low: Math.round(lowVal * 10) / 10,
+      close: Math.round(closeVal * 10) / 10,
+      volume: Math.round(v ?? 0),
+      ma5: null,
+      ma25: null,
+      rsi: null,
+      bbUpper: null,
+      bbMiddle: null,
+      bbLower: null,
+    });
+    lastClose = closeVal;
+  }
+
+  return rawCandles;
 }
 
 // ---- サーバーサイドキャッシュ ----
@@ -259,11 +363,10 @@ async function scanSymbol(
   };
 
   try {
-    const cacheKey = `${ticker}:1d:1m`;
+    // データAPIは1分足を返さないため、5分足・直近5営業日で取得する
+    const cacheKey = `${ticker}:5d:5m`;
     const rawData = await getCachedOrFetch(cacheKey, () =>
-      callDataApi("YahooFinance/get_stock_chart", {
-        query: { symbol: ticker, region: "JP", interval: "1m", range: "1d" },
-      })
+      fetchStockChart({ symbol: ticker, region: "JP", interval: "5m", range: "5d" })
     );
 
     const data = rawData as {
@@ -294,26 +397,7 @@ async function scanSymbol(
     const timestamps = r.timestamp ?? [];
     const quotes = r.indicators.quote[0];
 
-    const rawCandles: CandleWithSignal[] = [];
-    for (let i = 0; i < timestamps.length; i++) {
-      const o = quotes.open[i];
-      const c = quotes.close[i];
-      if (o === null || c === null) continue;
-      const d = new Date(timestamps[i] * 1000);
-      const jstHour = (d.getUTCHours() + 9) % 24;
-      const timeStr = `${String(jstHour).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-      rawCandles.push({
-        time: timeStr,
-        timestamp: timestamps[i] * 1000,
-        open: Math.round((o ?? 0) * 10) / 10,
-        high: Math.round((quotes.high[i] ?? o ?? 0) * 10) / 10,
-        low: Math.round((quotes.low[i] ?? o ?? 0) * 10) / 10,
-        close: Math.round((c ?? 0) * 10) / 10,
-        volume: Math.round(quotes.volume[i] ?? 0),
-        ma5: null, ma25: null, rsi: null,
-        bbUpper: null, bbMiddle: null, bbLower: null,
-      });
-    }
+    const rawCandles = buildCandlesFromQuotes(timestamps, quotes);
 
     if (rawCandles.length === 0) return { ...base, error: true };
 
@@ -367,8 +451,9 @@ export const stockDataRouter = router({
     .input(
       z.object({
         symbol: z.string().default("9984.T"),
-        range: z.enum(["1d", "5d", "1mo"]).default("1d"),
-        interval: z.enum(["1m", "5m", "15m", "1d"]).default("1m"),
+        // データAPIは1分足を返さないため、5分足・直近5営業日を既定とする
+        range: z.enum(["1d", "5d", "1mo"]).default("5d"),
+        interval: z.enum(["1m", "5m", "15m", "1d"]).default("5m"),
         rsiUpper: z.number().min(50).max(90).default(70),
         rsiLower: z.number().min(10).max(50).default(30),
       })
@@ -379,13 +464,11 @@ export const stockDataRouter = router({
       let rawData: unknown;
       try {
         rawData = await getCachedOrFetch(cacheKey, () =>
-          callDataApi("YahooFinance/get_stock_chart", {
-            query: {
-              symbol: input.symbol,
-              region: "JP",
-              interval: input.interval,
-              range: input.range,
-            },
+          fetchStockChart({
+            symbol: input.symbol,
+            region: "JP",
+            interval: input.interval,
+            range: input.range,
           })
         );
       } catch (err) {
@@ -434,38 +517,8 @@ export const stockDataRouter = router({
       const timestamps = result.timestamp ?? [];
       const quotes = result.indicators.quote[0];
 
-      // ローソク足データを構築（UTC→JST変換）
-      const rawCandles: CandleWithSignal[] = [];
-      for (let i = 0; i < timestamps.length; i++) {
-        const o = quotes.open[i];
-        const h = quotes.high[i];
-        const l = quotes.low[i];
-        const c = quotes.close[i];
-        const v = quotes.volume[i];
-
-        if (o === null || c === null) continue;
-
-        // UTC timestamp → JST time string
-        const d = new Date(timestamps[i] * 1000);
-        const jstHour = (d.getUTCHours() + 9) % 24;
-        const timeStr = `${String(jstHour).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-
-        rawCandles.push({
-          time: timeStr,
-          timestamp: timestamps[i] * 1000,
-          open: Math.round((o ?? 0) * 10) / 10,
-          high: Math.round((h ?? o ?? 0) * 10) / 10,
-          low: Math.round((l ?? o ?? 0) * 10) / 10,
-          close: Math.round((c ?? 0) * 10) / 10,
-          volume: Math.round(v ?? 0),
-          ma5: null,
-          ma25: null,
-          rsi: null,
-          bbUpper: null,
-          bbMiddle: null,
-          bbLower: null,
-        });
-      }
+      // ローソク足データを構築（UTC→JST変換、null補完つき）
+      const rawCandles = buildCandlesFromQuotes(timestamps, quotes);
 
       if (rawCandles.length === 0) {
         throw new TRPCError({ code: "NOT_FOUND", message: "有効なローソク足データがありません" });
@@ -487,10 +540,16 @@ export const stockDataRouter = router({
         c.bbLower = bb.lower[i];
       });
 
-      // シグナル検出
-      const candlesWithSignals = detectSignals(rawCandles, input.rsiUpper, input.rsiLower);
+      // シグナル検出（指標は5営業日分の連続データで計算済み）
+      const allWithSignals = detectSignals(rawCandles, input.rsiUpper, input.rsiLower);
 
-      // シグナルのみ抽出（サマリー用）
+      // 表示用は「最新営業日の足」だけに絞る（指標は前日からの連続計算済みなので正確）
+      const latestDayKey = allWithSignals[allWithSignals.length - 1]?.dayKey;
+      const candlesWithSignals = latestDayKey
+        ? allWithSignals.filter(c => c.dayKey === latestDayKey)
+        : allWithSignals;
+
+      // シグナルのみ抽出（サマリー用・表示対象の最新営業日分のみ）
       const signals = candlesWithSignals
         .filter(c => c.signal)
         .map(c => ({
@@ -579,15 +638,16 @@ export const stockDataRouter = router({
           ? input.symbols
           : TARGET_STOCKS.map((s) => s.symbol);
 
-      // APIレート制限を避けるため、小さな並列度で順次処理する
+      // データAPIは「1秒あたりのレート制限」が厳しいため、
+      // 並列実行せず1銘柄ずつ順次処理し、各呼び出しの間に少し待機する。
+      // （キャッシュ済みの銘柄は待機をスキップして高速化）
       const results: ScannedSignal[] = [];
-      const CONCURRENCY = 4;
-      for (let i = 0; i < targets.length; i += CONCURRENCY) {
-        const batch = targets.slice(i, i + CONCURRENCY);
-        const scanned = await Promise.all(
-          batch.map((sym) => scanSymbol(sym, input.rsiUpper, input.rsiLower))
-        );
-        results.push(...scanned);
+      const DELAY_MS = 350;
+      const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+      for (let i = 0; i < targets.length; i++) {
+        const scanned = await scanSymbol(targets[i], input.rsiUpper, input.rsiLower);
+        results.push(scanned);
+        if (i < targets.length - 1) await sleep(DELAY_MS);
       }
 
       return {

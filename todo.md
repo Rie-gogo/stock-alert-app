@@ -213,3 +213,17 @@
 - [x] getCachedOrFetch 経由で getStockChart とスキャン両方に反映、staleTimeも4分→15秒に短縮
 - [x] cacheTtlFor のユニットテストを追加（12テスト、合計103テスト pass）
 - [x] 動作確認・チェックポイント保存・報告
+
+## 寄り付き直後 nullローソク足エラー修正（2026-06-03）
+- [x] buildCandlesFromQuotes 共通関数を作成し、close=nullでもopen/前足closeで補完して足を残す
+- [x] getStockChart と scanSymbol 両方を共通関数に置き換え
+- [x] 補完ロジックの vitest を追加（寄り付き直後の薄いデータでもエラーにならない）
+- [x] 全テスト pass・動作確認・チェックポイント保存・報告
+
+## チャート全滅 真因修正: 1分足→5分足（2026-06-03）
+- [x] データAPIは interval=1m を返さない（全range 0件）。interval=5m / range=5d なら取得可と判明
+- [x] フロント useRealMarketData の取得interval/rangeを 5m/5d に変更
+- [x] getStockChart デフォルトrangeを5dに、scanSymbolも5m/5dに変更
+- [x] UIの「1分足」表記を「5分足」に修正
+- [x] スキャンのレート制限対策（並列度を1に低減、銘柄間に350msディレイ＋最大2回リトライ）
+- [x] 関連テスト更新・全テストpass・動作確認・チェックポイント保存・報告
