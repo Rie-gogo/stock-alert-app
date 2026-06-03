@@ -28,7 +28,7 @@ export const REAL_TARGET_STOCKS = TARGET_STOCKS.map((s) => ({
  */
 export const SIMULATION_STOCKS = [
   { symbol: '3436', ticker: '3436.T', name: 'SUMCO' },               // バックテスト1位 +130,800円
-  { symbol: '6976', ticker: '6976.T', name: '太陽誘電' },            // バックテスト2位 +66,600円
+  { symbol: '3778', ticker: '3778.T', name: 'さくらインターネット' }, // バックテスト2位 +105,100円（太陽誘電は損失超過のため除外）
   { symbol: '6981', ticker: '6981.T', name: '村田製作所' },          // バックテスト3位 +47,400円
   { symbol: '6758', ticker: '6758.T', name: 'ソニーグループ' },      // 電機・高流動性
   { symbol: '8306', ticker: '8306.T', name: '三菱UFJ FG' },         // 銀行・流動性最高水準
