@@ -29,6 +29,12 @@ export interface ConfirmationContext {
   ma25: number | null;
   /** 直近の価格モメンタム = 当該足終値 - kバー前の終値。算出不能なら null */
   momentum: number | null;
+  /**
+   * 当日の大局トレンド（レジーム）。指定された場合、トレンド裏付けは
+   * 超短期MA(MA5 vs MA25)ではなく「シグナル方向と大局トレンドの一致」で評価する。
+   * 下落相場の戻り売り（一時的にMA5>MA25）を正しく裏付けるための指定。
+   */
+  regime?: "up" | "down" | "neutral";
 }
 
 /** 個々の確認結果 */
@@ -77,9 +83,14 @@ export function isVolumeConfirmed(
 export function isTrendAligned(
   type: SignalType,
   ma5: number | null,
-  ma25: number | null
+  ma25: number | null,
+  regime?: "up" | "down" | "neutral"
 ): boolean {
   if (type === "warn") return true;
+  // 大局トレンドが明確な場合は、超短期MAより大局を優先して裏付けを評価する。
+  // （下落相場の戻り売りは一時的にMA5>MA25だが、大局は下落なので売りはトレンド一致と見なす）
+  if (regime === "down") return type === "sell";
+  if (regime === "up") return type === "buy";
   if (ma5 === null || ma25 === null) return false;
   if (type === "buy") return ma5 >= ma25;
   return ma5 <= ma25; // sell
@@ -110,7 +121,7 @@ export function scoreToConfidence(score: number): SignalConfidence {
  */
 export function evaluateConfirmation(ctx: ConfirmationContext): ConfirmationResult {
   const volumeConfirmed = isVolumeConfirmed(ctx.volume, ctx.avgVolume);
-  const trendAligned = isTrendAligned(ctx.type, ctx.ma5, ctx.ma25);
+  const trendAligned = isTrendAligned(ctx.type, ctx.ma5, ctx.ma25, ctx.regime);
   const momentumAligned = isMomentumAligned(ctx.type, ctx.momentum);
 
   const checks: ConfirmationChecks = { volumeConfirmed, trendAligned, momentumAligned };

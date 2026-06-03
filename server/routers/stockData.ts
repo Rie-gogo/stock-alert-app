@@ -14,6 +14,13 @@ import {
   priceMomentum,
   type SignalConfidence,
 } from "../signalConfirmation";
+import {
+  ma25Slope,
+  dayChangeRatio,
+  classifyIntradayRegime,
+  isSignalAllowedInRegime,
+  type IntradayRegime,
+} from "../intradayRegime";
 
 // ---- データAPI呼び出し（レート制限の自動リトライ付き） ----
 
@@ -125,10 +132,19 @@ export interface CandleWithSignal {
   signal?: { type: "buy" | "sell" | "warn"; reason: string; confidence?: SignalConfidence };
 }
 
-function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLower = 30): CandleWithSignal[] {
+export function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLower = 30): CandleWithSignal[] {
   const result = candles.map(c => ({ ...c }));
   const closes = result.map(c => c.close);
   const volumes = result.map(c => c.volume);
+  const ma25Series = result.map(c => c.ma25);
+
+  // 各足の「当日の寄り値」を、その足と同じ営業日(dayKey)の最初の足の始値として求める。
+  // dayKey が無い場合（旧データ等）は系列全体の先頭始値で代用する。
+  const dayOpenByKey = new Map<string, number>();
+  for (const c of result) {
+    const key = c.dayKey ?? "__all__";
+    if (!dayOpenByKey.has(key)) dayOpenByKey.set(key, c.open);
+  }
 
   for (let i = 1; i < result.length; i++) {
     const c = result[i];
@@ -139,6 +155,16 @@ function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLower = 30
 
     if (c5 === null || c25 === null || p5 === null || p25 === null ||
         cRsi === null || cBbu === null || cBbl === null) continue;
+
+    // --- 当日の大局トレンド（レジーム）を判定 ---
+    // 1分足の超短期クロスだけで買い/売りを貼り替えると、明確な下落日の安値圏リバウンドを
+    // 「買い」と誤表示してしまう。そこでMA25の傾きと当日寄りからの騰落率で大局を捉え、
+    // レジームに逆らうシグナル（下落相場のロング/上昇相場のショート）を抑制する。
+    const dayKey = c.dayKey ?? "__all__";
+    const dayOpen = dayOpenByKey.get(dayKey) ?? null;
+    const slope = ma25Slope(ma25Series, i);
+    const dayChange = dayChangeRatio(c.close, dayOpen);
+    const regime: IntradayRegime = classifyIntradayRegime({ slope, dayChange });
 
     const isStrongDown = c5 < c25 && c.close < c5;
     const isStrongUp = c5 > c25 && c.close >= c5;
@@ -172,7 +198,16 @@ function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLower = 30
         candidate = { type: "sell", reason: `デッドクロス (MA5:${c5} < MA25:${c25})` };
       } else if (cRsi >= rsiUpper && c.close >= cBbu && !isStrongUp && !gcProtection) {
         candidate = { type: "sell", reason: `RSI買われすぎ(${cRsi}%) + BB上限タッチ` };
+      } else if (regime === "down" && cRsi >= 50 && c.close <= c25) {
+        // 下落相場の「戻り売り」: 大局が下落の中でRSIが中値以上まで戻し、
+        // 価格がMA25以下（戻り高が中期線に押さえられた）ところを売り候補とする。
+        candidate = { type: "sell", reason: `下落相場の戻り売り (RSI:${cRsi}% · MA25以下)` };
       }
+    }
+
+    // 大局トレンドに逆らうシグナルは抑制する（下落相場のロング・上昇相場のショートを出さない）。
+    if (candidate && !isSignalAllowedInRegime(candidate.type, regime)) {
+      candidate = null;
     }
 
     if (candidate) {
@@ -185,6 +220,7 @@ function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLower = 30
         ma5: c5,
         ma25: c25,
         momentum: priceMomentum(closes, i, 3),
+        regime,
       });
       if (conf.shouldNotify) {
         c.signal = {
