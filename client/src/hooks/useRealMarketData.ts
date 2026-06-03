@@ -122,6 +122,18 @@ function isJSTMarketOpen(): boolean {
   return jstMinutes >= openMin && jstMinutes < closeMin;
 }
 
+/** 寄り付き前後（平日 8:50〜9:15）かどうか。この帯は更新頻度を上げる。 */
+function isNearOpenBell(): boolean {
+  const now = new Date();
+  const jstOffset = 9 * 60;
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const jstMinutes = (utcMinutes + jstOffset) % (24 * 60);
+  const jstDay = new Date(now.getTime() + jstOffset * 60 * 1000).getUTCDay();
+  if (jstDay === 0 || jstDay === 6) return false;
+  // 8:50 = 530分, 9:15 = 555分
+  return jstMinutes >= 530 && jstMinutes <= 555;
+}
+
 // ---------- フック本体 ----------
 
 interface UseRealMarketDataProps {
@@ -179,9 +191,12 @@ export function useRealMarketData({
   };
 
   // Yahoo Finance からデータ取得
-  // - 市場時間中（9:00〜15:30）: 5分ごと自動更新
+  // - 寄り付き前後（8:50〜9:15）: 20秒ごとに更新し、引け値→寄付への切り替わりを取りこぼさない
+  // - 市場時間中（9:00〜15:30）: 1分ごと自動更新（1分足に追従）
   // - 市場時間外（夜間・土日）: 自動更新停止（手動更新のみ）
-  const pollingInterval = isPaused || isMarketClosed ? false : (5 * 60_000);
+  const pollingInterval = isPaused || isMarketClosed
+    ? false
+    : (isNearOpenBell() ? 20_000 : 60_000);
   const { data, isLoading, error, dataUpdatedAt } = trpc.stockData.getStockChart.useQuery(
     {
       symbol: selectedStock.symbol,
@@ -192,9 +207,9 @@ export function useRealMarketData({
     },
     {
       refetchInterval: pollingInterval,
-      staleTime: 4 * 60_000, // 4分間はキャッシュを信頼
+      staleTime: 15_000, // 古い表示を引きずらないよう短めに
       retry: 2,
-      retryDelay: 10_000,
+      retryDelay: 5_000,
     }
   );
 

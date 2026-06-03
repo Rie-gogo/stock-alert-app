@@ -146,14 +146,32 @@ type CacheEntry = {
 };
 const stockCache = new Map<string, CacheEntry>();
 
-/** JST時刻で市場時間中（9:00〜15:30）かどうか判定 */
-function isMarketHours(): boolean {
-  const now = new Date();
+/** JST時刻の「午前0時からの経過分」を返す（テスト用に時刻を注入可能） */
+export function jstMinutesOfDay(now: Date = new Date()): number {
   const jstHour = (now.getUTCHours() + 9) % 24;
   const jstMin = now.getUTCMinutes();
-  const totalMin = jstHour * 60 + jstMin;
+  return jstHour * 60 + jstMin;
+}
+
+/** JST時刻で市場時間中（9:00〜15:30）かどうか判定 */
+function isMarketHours(now: Date = new Date()): boolean {
+  const totalMin = jstMinutesOfDay(now);
   // 9:00 = 540分, 15:30 = 930分
   return totalMin >= 540 && totalMin <= 930;
+}
+
+/**
+ * キャッシュの有効期間（ミリ秒）を時間帯から決める。
+ * - 寄り付き前後（8:50〜9:15）: 前日終値の古い足を引きずらないよう10秒だけキャッシュ
+ * - 市場時間中（9:00〜15:30）: 1分足の更新に追従するため60秒キャッシュ
+ * - 市場時間外: 値動きが無いため15分キャッシュ（API負荷削減）
+ */
+export function cacheTtlFor(now: Date = new Date()): number {
+  const totalMin = jstMinutesOfDay(now);
+  // 8:50 = 530分, 9:15 = 555分
+  if (totalMin >= 530 && totalMin <= 555) return 10 * 1000;
+  if (isMarketHours(now)) return 60 * 1000;
+  return 15 * 60 * 1000;
 }
 
 function getCachedOrFetch(
@@ -166,8 +184,7 @@ function getCachedOrFetch(
     return Promise.resolve(entry.data);
   }
   return fetcher().then(data => {
-    // 市場時間中は5分キャッシュ、市場時間外は60分キャッシュ
-    const ttlMs = isMarketHours() ? 5 * 60 * 1000 : 60 * 60 * 1000;
+    const ttlMs = cacheTtlFor();
     stockCache.set(cacheKey, { data, cachedAt: now, ttlMs });
     return data;
   });
