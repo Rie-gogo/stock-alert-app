@@ -399,4 +399,21 @@
 - [x] 最大保有時間: ショート45本（約90分）超過で強制手仕まい（SHORT_MAX_HOLD_BARS=45）
 - [x] J-Quants 60営業日バックテストで再検証（総損益: -60,450円 → -57,300円、中央値: -7,600円/日 → -2,900円/日）
 - [x] 177テスト全通過確認
+- [x] チェックポイント保存（version: 6a56dde2）
+
+## Phase 24: A/B/C改善スイープ & ショート損切り最適化
+
+- [x] SimOverrides インターフェースを realSimulation.ts に追加（shortMaxMaDeviation / shortRequiresMktDown / shortStopLossPercent）
+- [x] A/B/C全組み合わせ8パターンをJ-Quants 60営業日でバックテスト（analysis/abcSweep.ts）
+  - 結果: 改善A（MA乖離率制限）・改善B（下落相場限定）は効果なし（既存条件と重複）
+  - 改善C（損切り縮小）のみ有効: -57,300円 → +2,700円
+- [x] ショート損切り幅を0.5%〜3.0%でスイープ（analysis/shortStopSweep.ts）
+  - 最良: 0.55% → +122,250円
+- [x] ショート損切り幅を0.3%〜0.9%で細かくスイープ（analysis/shortStopFineSweep.ts）
+  - 最良確定: 0.55% → +122,250円（日平均+2,038円、最悪日-72,400円）
+- [x] SHORT_STOP_LOSS_PERCENT = 0.55 を realSimulation.ts に追加・エクスポート
+- [x] generateRealDailyReport でショート専用損切りを適用
+- [x] jq_backtest.ts を SHORT_STOP_LOSS_PERCENT 使用に更新
+- [x] 最終バックテスト確認: 総損益 +122,250円（改善前 -57,300円、+179,550円改善）
+- [x] 177テスト全通過確認
 - [ ] チェックポイント保存

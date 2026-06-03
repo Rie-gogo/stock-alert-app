@@ -13,6 +13,7 @@ import {
   simulateStockReal,
   computeMarketEfficiency,
   isRangeBoundDay,
+  SHORT_STOP_LOSS_PERCENT,
 } from "../server/realSimulation";
 import * as fs from "fs";
 import * as path from "path";
@@ -124,7 +125,7 @@ function main() {
     let dayProfit = 0, dayWin = 0, dayLoss = 0;
     for (const s of TARGET_STOCKS) {
       const candles = candleMap.get(s.symbol); if (!candles) continue;
-      const res = simulateStockReal(s.symbol, s.ticker, s.name, candles, marketBiasByProgress, 3_000_000, 70, 30, 2.0, rangeBound);
+      const res = simulateStockReal(s.symbol, s.ticker, s.name, candles, marketBiasByProgress, 3_000_000, 70, 30, 2.0, rangeBound, 1.0, { shortStopLossPercent: SHORT_STOP_LOSS_PERCENT });
       if (!res) continue;
       dayProfit += res.profitAmount; dayWin += res.winCount; dayLoss += res.lossCount;
       const agg = symbolAgg.get(s.symbol) ?? { name: s.name, profit: 0, win: 0, loss: 0, trades: 0 };
