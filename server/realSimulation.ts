@@ -144,7 +144,19 @@ const SHORT_RSI_MIN = 55;          // 空売りはRSIがこの値以上（まだ
 const SHORT_NEAR_MA = 0.004;       // 価格がMA25からこの範囲内(±0.4%)に戻った「戻り売り」場面を狙う
 // --- 下落相場ブレイク売り（戻りが来ない下落相場で空売りを成立させる経路）---
 const SHORT_BREAKDOWN_RSI_MIN = 35; // ブレイク売りはRSIがこの値より上でのみ許可（売られすぎの底値圏での飛び乗りを避ける）
-// --- 12時台（昼休み前後）エントリー抑制 ---
+// --- 空売りゴールデンクロスカバーの条件強化 ---
+// バックテストでゴールデンクロス単独カバーは333回中250回負け(-491,700円)。
+// 含み益ありかつRSIがこの値以上（底打ち反転の信頼度が高い）の場合のみゴールデンクロスカバーを許可する。
+const SHORT_GC_COVER_RSI_MIN = 40;  // GCカバーは RSI>=40（底打ち反転のシグナル確認）かつ含み益ありの場合のみ
+// --- ゴールデンクロス直後のショート禁止（クールダウン）---
+// GC直後は上昇トレンド転換のシグナル。この直後にショートエントリーするのは、トレンドに逆行することになる。
+// バックテストで「GC直後にショートした結果、引け値強制決済・空売り損切りが多発」したため、GC後のクールダウンを設ける。
+const SHORT_GC_COOLDOWN_BARS = 15; // GC後この本数はショートエントリー禁止（約30分クールダウン）
+// --- ショートポジションの最大保有時間 ---
+// 引けまで持ち越しになるショートの大半が損失になる（引け値強制決済勝率 23.9%）。
+// 一定時間内に利益が出なければ手仕まいし、「ダラダラ持ち続けて引けで大損」を防ぐ。
+const SHORT_MAX_HOLD_BARS = 45; // ショートの最大保有時間（約90分）。これを超えたら含み損でも手仕まい
+// --- 12時台（昂休み前後）エントリー抱制 ---
 // 昼休み(11:30-12:30)前後は薄商いでダマシが多く、バックテストで12時台は全敗だった。
 const SUPPRESS_ENTRY_HOURS = new Set([12]); // この時間帯(時)は新規エントリーを抑制（決済は許可）
 const SLOPE_LOOKBACK = 25;       // MA25傾きを測る基準（25本=約50分前）
@@ -165,6 +177,9 @@ export const REGIME_CONSTANTS = {
   SHORT_RSI_MIN,
   SHORT_NEAR_MA,
   SHORT_BREAKDOWN_RSI_MIN,
+  SHORT_GC_COVER_RSI_MIN,
+  SHORT_GC_COOLDOWN_BARS,
+  SHORT_MAX_HOLD_BARS,
   SUPPRESS_ENTRY_HOURS,
   SLOPE_THRESHOLD,
   RANGE_EFFICIENCY_THRESHOLD,
@@ -409,6 +424,8 @@ export function simulateStockReal(
   let realizedPnl = 0;        // 確定損益（サーキットブレーカー判定用）
   let tradeCount = 0;         // 取引回数（決済ベース）
   let halted = false;         // サーキットブレーカー発動フラグ
+  let gcCooldownRemaining = 0; // GC直後のショート禁止カウントダウン
+  let shortEntryBar = -1;       // ショートエントリー時のインデックス（最大保有時間管理用）
 
   const stopLossRatio = stopLossPercent / 100;
 
@@ -600,8 +617,10 @@ export function simulateStockReal(
       curr.rsi > SHORT_BREAKDOWN_RSI_MIN &&
       curr.rsi < rsiUpper;
     // 戻り売り（厳選）／ ブレイク売り（下落相場限定）／ RSI買われすぎ+BB上限の明確な反転サイン。デッドクロス単独は採用しない。
+    // GC直後のクールダウン中はショートエントリー禁止（上昇トレンド転換直後の逆行を回避）
+    const inGcCooldown = gcCooldownRemaining > 0;
     const shouldEnterShort = regimeAllowShort && !isStrongUp && volConfirmed &&
-      !suppressEntryByHour &&
+      !suppressEntryByHour && !inGcCooldown &&
       tradeCount < MAX_TRADES_PER_DAY &&
       (isPullbackShort || isBreakdownShort || (isRsiOverbought && isBbUpper));
 
@@ -613,6 +632,7 @@ export function simulateStockReal(
         shortShares = shares;
         shortEntryPrice = curr.close;
         shortLowWater = curr.close;  // トレイリング用の最安値を初期化
+        shortEntryBar = i;          // 最大保有時間管理用
         capital -= marginRequired; // 証拠金を確保
         const shortReason = isPullbackShort
           ? `空売りエントリー: 下落トレンド中の戻り売り (RSI:${curr.rsi?.toFixed(1)}、MA25近辺)`
@@ -651,11 +671,24 @@ export function simulateStockReal(
         shortShares = 0;
         shortEntryPrice = 0;
         shortLowWater = 0;
+        shortEntryBar = -1;
       }
     }
 
-    // ショート利確・買い戻し：ゴールデンクロス or RSI売られすぎ+BB下限
-    const shouldCoverShort = isGoldenCross || (isRsiOversold && isBbLower && !isStrongDown);
+    // ショート利確・買い戻し
+    // 【改善】ゴールデンクロスでの買い戻しは「含み益あり かつ RSI>=40（底打ち反転の信頼度が高い）」の場合のみ実行。
+    // バックテストでゴールデンクロス単独カバーは333回中250回負け(-491,700円)。
+    // 含み損のままゴールデンクロスが来た場合は損切りライン（同値/固定）に任せる。
+    const shortCurrentProfit = shortShares > 0 ? (shortEntryPrice - curr.close) * shortShares : 0;
+    const shortInProfit = shortCurrentProfit > 0;
+    // ゴールデンクロスカバー: 含み益あり かつ RSI>=40（底打ち反転シグナルの信頼度確認）
+    const gcCoverAllowed = isGoldenCross && shortInProfit && (curr.rsi ?? 50) >= SHORT_GC_COVER_RSI_MIN;
+    // RSI売られすぎ+BB下限カバー: 従来通り（勝率が高い経路は維持）
+    const rsiBbCover = isRsiOversold && isBbLower && !isStrongDown;
+    // 【改善】最大保有時間超過: 引けまで持ち越しになるショートの大半が損失。時間切れで手仕まい
+    const shortHoldBars = shortEntryBar >= 0 ? i - shortEntryBar : 0;
+    const shortTimeExpired = shortShares > 0 && shortHoldBars >= SHORT_MAX_HOLD_BARS;
+    const shouldCoverShort = gcCoverAllowed || rsiBbCover || shortTimeExpired;
 
     if (shortShares > 0 && shouldCoverShort) {
       const profit = (shortEntryPrice - curr.close) * shortShares;
@@ -664,7 +697,9 @@ export function simulateStockReal(
       if (profit > 0) winCount++; else lossCount++;
       realizedPnl += profit; tradeCount++;
       if (realizedPnl <= -CIRCUIT_BREAKER) halted = true;
-      const coverReason = isGoldenCross
+      const coverReason = shortTimeExpired
+        ? `空売り買い戻し: 最大保有時間超過 (${shortHoldBars}本保有, エントリー:${shortEntryPrice.toFixed(1)}→${curr.close.toFixed(1)})`
+        : gcCoverAllowed
         ? `空売り買い戻し: ゴールデンクロス (MA5:${curr.ma5?.toFixed(1)} > MA25:${curr.ma25?.toFixed(1)})`
         : `空売り買い戻し: RSI売られすぎ+BB下限 (RSI:${curr.rsi?.toFixed(1)})`;
       trades.push({ time: curr.time, type: "cover", price: curr.close, shares: shortShares, totalAmount: shortShares * curr.close, profit, profitRate: profit / (shortShares * shortEntryPrice) });
@@ -672,6 +707,7 @@ export function simulateStockReal(
       shortShares = 0;
       shortEntryPrice = 0;
       shortLowWater = 0;
+      shortEntryBar = -1;
     }
   }
 
