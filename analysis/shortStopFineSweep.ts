@@ -10,6 +10,7 @@ import {
   simulateStockReal,
   computeMarketEfficiency,
   isRangeBoundDay,
+  LUNCH_EXIT_ALL_MINUTE,
   type SimOverrides,
 } from "../server/realSimulation";
 import * as fs from "fs";
@@ -138,7 +139,7 @@ function main() {
   const results: StopResult[] = [];
 
   for (const stop of stopLevels) {
-    const overrides: SimOverrides = { shortStopLossPercent: stop };
+      const overrides: SimOverrides = { shortStopLossPercent: stop, lunchExitAllMinute: LUNCH_EXIT_ALL_MINUTE };
     let grandTotal = 0, grandWin = 0, grandLoss = 0, posDays = 0, negDays = 0;
     let worstDay = 0, daysOver15k = 0, tradedDays = 0, totalTrades = 0;
     const dailyProfits: number[] = [];
