@@ -363,10 +363,10 @@ async function scanSymbol(
   };
 
   try {
-    // データAPIは1分足を返さないため、5分足・直近5営業日で取得する
-    const cacheKey = `${ticker}:5d:5m`;
+    // 1分足・直近5営業日で取得（指標は連続データで計算、表示は当日分のみ）
+    const cacheKey = `${ticker}:5d:1m`;
     const rawData = await getCachedOrFetch(cacheKey, () =>
-      fetchStockChart({ symbol: ticker, region: "JP", interval: "5m", range: "5d" })
+      fetchStockChart({ symbol: ticker, region: "JP", interval: "1m", range: "5d" })
     );
 
     const data = rawData as {
@@ -451,9 +451,9 @@ export const stockDataRouter = router({
     .input(
       z.object({
         symbol: z.string().default("9984.T"),
-        // データAPIは1分足を返さないため、5分足・直近5営業日を既定とする
+        // 1分足・直近5営業日を既定とする（指標は連続データで計算、表示は当日分のみ）
         range: z.enum(["1d", "5d", "1mo"]).default("5d"),
-        interval: z.enum(["1m", "5m", "15m", "1d"]).default("5m"),
+        interval: z.enum(["1m", "5m", "15m", "1d"]).default("1m"),
         rsiUpper: z.number().min(50).max(90).default(70),
         rsiLower: z.number().min(10).max(50).default(30),
       })

@@ -200,9 +200,9 @@ export function useRealMarketData({
   const { data, isLoading, error, dataUpdatedAt } = trpc.stockData.getStockChart.useQuery(
     {
       symbol: selectedStock.symbol,
-      // データAPIは1分足を返さないため、5分足・直近5営業日で取得する
+      // 1分足・直近5営業日で取得（指標は連続データで計算、表示は当日分のみ）
       range: '5d',
-      interval: '5m',
+      interval: '1m',
       rsiUpper: rsiThresholdUpper,
       rsiLower: rsiThresholdLower,
     },

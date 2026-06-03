@@ -396,7 +396,7 @@ export default function Home() {
                 <div className="flex items-center space-x-2">
                   <LineChart className="w-4 h-4 text-primary" />
                   <h2 className="text-xs font-bold text-foreground">
-                    リアルタイムチャート (5分足)
+                    リアルタイムチャート (1分足)
                     <span className="ml-2 text-[9px] text-emerald-400 font-mono">
                       Yahoo Finance 実データ
                     </span>
@@ -554,7 +554,7 @@ export default function Home() {
                 </h4>
                 <ul className="text-[9px] text-muted-foreground space-y-1.5 list-disc pl-3">
                   <li>
-                    <strong className="text-emerald-400">【実データ】チャート</strong>: Yahoo Finance から5分足（直近5営業日）を取得し当日分を表示。場中は1分ごと自動更新。
+                    <strong className="text-emerald-400">【実データ】チャート</strong>: Yahoo Finance から1分足を取得し当日分を表示（指標は直近5営業日の連続データで計算）。場中は1分ごと自動更新。
                   </li>
                   <li>
                     <strong className="text-emerald-400">【実データ】出来高分析</strong>: ローソク足の実出来高を使用。
@@ -583,7 +583,7 @@ export default function Home() {
         <div>
           <span>PRO-TERMINAL v2.0.0</span>
           <span className="mx-2">|</span>
-          <span className="text-emerald-400">データソース: Yahoo Finance 実データのみ (5分足 + 実出来高)</span>
+          <span className="text-emerald-400">データソース: Yahoo Finance 実データのみ (1分足 + 実出来高)</span>
           <span className="mx-2">|</span>
           <span className="text-emerald-400">架空データ不使用</span>
         </div>
