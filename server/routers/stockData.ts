@@ -30,6 +30,8 @@ import {
   isLongLowerShadow,
   detectHarami,
   detectRoundLevel,
+  detectVwapBounce,
+  detectDoubleTopBottom,
 } from "../vwap";
 
 // ---- データAPI呼び出し（レート制限の自動リトライ付き） ----
@@ -162,6 +164,12 @@ export function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLow
   // ダウ理論スイング高値・安値を事前計算
   const dowSwings = calcDowSwings(result, 20);
 
+  // VWAP反発を事前計算
+  const vwapBounceSeries = detectVwapBounce(result, vwapSeries);
+
+  // ダブルトップ/ダブルボトムを事前計算
+  const doublePatternSeries = detectDoubleTopBottom(result, 40);
+
   // 各足の「当日の寄り値」を、その足と同じ営業日(dayKey)の最初の足の始値として求める。
   // dayKey が無い場合（旧データ等）は系列全体の先頭始値で代用する。
   const dayOpenByKey = new Map<string, number>();
@@ -223,6 +231,10 @@ export function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLow
     const longLowerShadow = isLongLowerShadow(c);
     const { isBullishHarami, isBearishHarami } = detectHarami(prev, c);
     const { crossedBelow: roundLevelBreak, crossedAbove: roundLevelBreakUp, level: roundLevel } = detectRoundLevel(prev.close, c.close);
+    // ---- VWAP反発 ----
+    const { isBullishBounce: vwapBullishBounce, isBearishBounce: vwapBearishBounce } = vwapBounceSeries[i];
+    // ---- ダブルトップ/ダブルボトム ----
+    const { isDoubleTop, isDoubleBottom, neckline: dtNeckline } = doublePatternSeries[i];
 
     // 買いシグナル
     if (!isStrongDown) {
@@ -245,6 +257,12 @@ export function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLow
       } else if (roundLevelBreakUp && roundLevel !== null && regime !== "down") {
         // 大台超え: キリ番を上抜け → 上昇加速シグナル
         candidate = { type: "buy", reason: `大台超え (${roundLevel}円突破)` };
+      } else if (vwapBullishBounce && regime !== "down") {
+        // VWAP反発（押し目買い）: VWAPまで下落後に陽線で反発 → 買い継続シグナル
+        candidate = { type: "buy", reason: `VWAP反発（押し目買い）(VWAP:${vwapSeries[i]?.toFixed(1)})` };
+      } else if (isDoubleBottom && dtNeckline !== null && regime !== "down") {
+        // ダブルボトム: 2つの谷のネックライン突破 → 底値確認・上昇転換シグナル
+        candidate = { type: "buy", reason: `ダブルボトム (ネックライン:${dtNeckline.toFixed(1)}円突破)` };
       }
     }
 
@@ -273,6 +291,12 @@ export function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLow
       } else if (roundLevelBreak && roundLevel !== null && regime !== "up") {
         // 大台割れ: キリ番を下抜け → 下落加速シグナル
         candidate = { type: "sell", reason: `大台割れ (${roundLevel}円割り込み)` };
+      } else if (vwapBearishBounce && regime !== "up") {
+        // VWAP反落（戻り売り）: VWAPまで上昇後に陰線で反落 → 売り継続シグナル
+        candidate = { type: "sell", reason: `VWAP反落（戻り売り）(VWAP:${vwapSeries[i]?.toFixed(1)})` };
+      } else if (isDoubleTop && dtNeckline !== null && regime !== "up") {
+        // ダブルトップ: 2つの山のネックライン割れ → 天井確認・下落転換シグナル
+        candidate = { type: "sell", reason: `ダブルトップ (ネックライン:${dtNeckline.toFixed(1)}円割れ)` };
       }
     }
 

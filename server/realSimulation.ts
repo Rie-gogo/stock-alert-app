@@ -8,7 +8,7 @@ import type { StockSimResult, TradeRecord, SignalRecord } from "./simulation";
 import { TARGET_STOCKS } from "../shared/stocks";
 import { applyPortfolioRules, rankRecommendedSymbols, type PerStockTrades, type SymbolScoreInput } from "./portfolio";
 import { isVolumeConfirmed, trailingAvgVolume } from "./signalConfirmation";
-import { calcVWAP } from "./vwap";
+import { calcVWAP, detectDoubleTopBottom } from "./vwap";
 
 // 共有定義からインポート（client/src/hooks/useRealMarketData.ts と同一ソース）
 export const REAL_TARGET_STOCKS = TARGET_STOCKS.map((s) => ({
@@ -681,13 +681,36 @@ export function simulateStockReal(
     // 弱気はらみ売り: 高値圏（RSI 55以上）での反転
     const isBearishHaramiShort = isBearishHarami && (curr.rsi ?? 50) >= 55 && !isStrongUp;
 
+    // ---- VWAP反発（押し目買い/戻り売り）----
+    // VWAPまで一時的に下落して反発した場面を押し目買いとして捕捉
+    const vwapPrev2 = i >= 2 ? candles[i - 2].vwap : null;
+    const isVwapBullishBounce = vwapCurr !== null && vwapPrev !== null && vwapPrev2 !== null &&
+      candles[i - 2].close < vwapPrev2 &&     // 2足前: VWAP以下
+      prev.low <= vwapPrev * 1.002 &&           // 前足: VWAPにタッチ（押し）
+      curr.close > vwapCurr &&                  // 現足: VWAP上回復
+      curr.close > curr.open &&                 // 現足が陽線
+      slope > 0 && !isStrongDown;               // 上昇トレンド中
+    // VWAPまで一時的に上昇して反落した場面を戻り売りとして捕捉
+    const isVwapBearishBounce = vwapCurr !== null && vwapPrev !== null && vwapPrev2 !== null &&
+      candles[i - 2].close > vwapPrev2 &&     // 2足前: VWAP以上
+      prev.high >= vwapPrev * 0.998 &&          // 前足: VWAPにタッチ（戻り）
+      curr.close < vwapCurr &&                  // 現足: VWAP下回復
+      curr.close < curr.open &&                 // 現足が陰線
+      slope < 0 && !isStrongUp;                 // 下落トレンド中
+
+    // ---- ダブルボトム/ダブルトップ ----
+    // 過去40本のデータでダブルボトム/トップを検出（最低42本必要）
+    const dtbResult = i >= 42 ? detectDoubleTopBottom(candles.slice(0, i + 1), 40)[i] : { isDoubleTop: false, isDoubleBottom: false, neckline: null };
+    const isDoubleBottomBuy = dtbResult.isDoubleBottom && !isStrongDown;
+    const isDoubleTopShort = dtbResult.isDoubleTop && !isStrongUp;
+
     // noLongAfterHour: 指定時刻以降のロングエントリーを禁止
     const suppressLongByHour = overrides.noLongAfterHour !== undefined && entryHour >= overrides.noLongAfterHour;
 
     const shouldBuyLong = regimeAllowLong && !isStrongDown && volConfirmed &&
       !suppressEntryByHour && !suppressAfternoon && !suppressLongByHour &&
       tradeCount < MAX_TRADES_PER_DAY &&
-      (isGoldenCross || (isRsiOversold && isBbLower) || isPullbackBuy || isVwapBuy || isLowerShadowBuy || isBullishHaramiBuy);
+      (isGoldenCross || (isRsiOversold && isBbLower) || isPullbackBuy || isVwapBuy || isLowerShadowBuy || isBullishHaramiBuy || isVwapBullishBounce || isDoubleBottomBuy);
 
     if (longShares === 0 && shortShares === 0 && shouldBuyLong) {
       const maxSpend = capital * lotRatio; // レジーム/銘柄に応じた建玉
@@ -822,7 +845,7 @@ export function simulateStockReal(
       !suppressEntryByHour && !suppressAfternoon && !inGcCooldown && !inShortStopCooldown && !suppressShortByHour &&
       !suppressShortByRsi && !suppressShortByVolRatio && !suppressShortByGapUp &&
       tradeCount < MAX_TRADES_PER_DAY &&
-      (isPullbackShort || isBreakdownShort || (isRsiOverbought && isBbUpper) || isVwapShort || isUpperShadowShort || isBearishHaramiShort);
+      (isPullbackShort || isBreakdownShort || (isRsiOverbought && isBbUpper) || isVwapShort || isUpperShadowShort || isBearishHaramiShort || isVwapBearishBounce || isDoubleTopShort);
 
     if (shortShares === 0 && longShares === 0 && shouldEnterShort) {
       const maxSpend = capital * lotRatio;

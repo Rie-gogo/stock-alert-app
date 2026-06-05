@@ -143,6 +143,122 @@ export function detectHarami(
 }
 
 /**
+ * VWAP反発の検出
+ * 価格がVWAPまで下落した後に反発した場合（押し目買いシグナル）
+ * または価格がVWAPまで上昇した後に反落した場合（戻り売りシグナル）
+ *
+ * 条件（買い反発）:
+ *   - 前々足: close < vwap（VWAP以下に下落）
+ *   - 前足: low <= vwap * 1.002（VWAPに接近またはタッチ）
+ *   - 現在足: close > vwap（VWAPを回復して反発）
+ *   - 現在足が陽線（close > open）
+ *
+ * 条件（売り反落）:
+ *   - 前々足: close > vwap（VWAP以上に上昇）
+ *   - 前足: high >= vwap * 0.998（VWAPに接近またはタッチ）
+ *   - 現在足: close < vwap（VWAPを割り込んで反落）
+ *   - 現在足が陰線（close < open）
+ */
+export function detectVwapBounce(
+  candles: VwapCandle[],
+  vwapSeries: (number | null)[]
+): { isBullishBounce: boolean; isBearishBounce: boolean }[] {
+  return candles.map((c, i) => {
+    if (i < 2) return { isBullishBounce: false, isBearishBounce: false };
+    const vwap = vwapSeries[i];
+    const vwapPrev = vwapSeries[i - 1];
+    const vwapPrev2 = vwapSeries[i - 2];
+    if (vwap === null || vwapPrev === null || vwapPrev2 === null) {
+      return { isBullishBounce: false, isBearishBounce: false };
+    }
+    const prev = candles[i - 1];
+    const prev2 = candles[i - 2];
+    // 買い反発: VWAP下→VWAP接触→VWAP上回復
+    const isBullishBounce =
+      prev2.close < vwapPrev2 &&           // 前々足がVWAP以下
+      prev.low <= vwapPrev * 1.002 &&       // 前足がVWAPに接近（±0.2%）
+      c.close > vwap &&                     // 現在足がVWAPを上回る
+      c.close > c.open;                     // 現在足が陽線
+    // 売り反落: VWAP上→VWAP接触→VWAP下割れ
+    const isBearishBounce =
+      prev2.close > vwapPrev2 &&            // 前々足がVWAP以上
+      prev.high >= vwapPrev * 0.998 &&      // 前足がVWAPに接近（±0.2%）
+      c.close < vwap &&                     // 現在足がVWAPを下回る
+      c.close < c.open;                     // 現在足が陰線
+    return { isBullishBounce, isBearishBounce };
+  });
+}
+
+/**
+ * ダブルトップ / ダブルボトムの検出
+ *
+ * ダブルトップ（売りシグナル）:
+ *   - 直近 lookback 本の中に2つの「山」がある
+ *   - 2つの山の高値が近い（差が山高値の1%以内）
+ *   - 現在足の終値がネックライン（2つの山の間の最安値）を下抜け
+ *
+ * ダブルボトム（買いシグナル）:
+ *   - 直近 lookback 本の中に2つの「谷」がある
+ *   - 2つの谷の安値が近い（差が谷安値の1%以内）
+ *   - 現在足の終値がネックライン（2つの谷の間の最高値）を上抜け
+ */
+export function detectDoubleTopBottom(
+  candles: VwapCandle[],
+  lookback = 40
+): { isDoubleTop: boolean; isDoubleBottom: boolean; neckline: number | null }[] {
+  return candles.map((c, i) => {
+    if (i < lookback + 2) return { isDoubleTop: false, isDoubleBottom: false, neckline: null };
+    const window = candles.slice(i - lookback, i); // 直前lookback本
+    const n = window.length;
+    // ローカル高値（山）と安値（谷）を検出
+    const peaks: { idx: number; price: number }[] = [];
+    const troughs: { idx: number; price: number }[] = [];
+    for (let j = 1; j < n - 1; j++) {
+      if (window[j].high > window[j - 1].high && window[j].high > window[j + 1].high) {
+        peaks.push({ idx: j, price: window[j].high });
+      }
+      if (window[j].low < window[j - 1].low && window[j].low < window[j + 1].low) {
+        troughs.push({ idx: j, price: window[j].low });
+      }
+    }
+    let isDoubleTop = false;
+    let isDoubleBottom = false;
+    let neckline: number | null = null;
+    // ダブルトップ: 最後の2つの山が近い高値
+    if (peaks.length >= 2) {
+      const p1 = peaks[peaks.length - 2];
+      const p2 = peaks[peaks.length - 1];
+      const priceDiff = Math.abs(p1.price - p2.price) / Math.max(p1.price, p2.price);
+      if (priceDiff <= 0.01 && p2.idx > p1.idx + 3) { // 2つの山が1%以内かつ3本以上離れている
+        // ネックライン = 2つの山の間の最安値
+        const between = window.slice(p1.idx, p2.idx + 1);
+        const neck = Math.min(...between.map(w => w.low));
+        if (c.close < neck) { // ネックライン割れ
+          isDoubleTop = true;
+          neckline = neck;
+        }
+      }
+    }
+    // ダブルボトム: 最後の2つの谷が近い安値
+    if (!isDoubleTop && troughs.length >= 2) {
+      const t1 = troughs[troughs.length - 2];
+      const t2 = troughs[troughs.length - 1];
+      const priceDiff = Math.abs(t1.price - t2.price) / Math.min(t1.price, t2.price);
+      if (priceDiff <= 0.01 && t2.idx > t1.idx + 3) { // 2つの谷が1%以内かつ3本以上離れている
+        // ネックライン = 2つの谷の間の最高値
+        const between = window.slice(t1.idx, t2.idx + 1);
+        const neck = Math.max(...between.map(w => w.high));
+        if (c.close > neck) { // ネックライン超え
+          isDoubleBottom = true;
+          neckline = neck;
+        }
+      }
+    }
+    return { isDoubleTop, isDoubleBottom, neckline };
+  });
+}
+
+/**
  * 大台割れ・大台超えの検出
  * キリ番（100円単位）を前足→現在足でまたいだかどうか
  *
