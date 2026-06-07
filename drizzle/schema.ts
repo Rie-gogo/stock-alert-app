@@ -248,3 +248,108 @@ export const kabuPlanSettings = mysqlTable("kabu_plan_settings", {
 
 export type KabuPlanSettings = typeof kabuPlanSettings.$inferSelect;
 export type InsertKabuPlanSettings = typeof kabuPlanSettings.$inferInsert;
+
+/**
+ * リアルタイム受信1分足ローソク足ログ
+ * Windowsスクリプトから送信された1分足OHLCVを記録する
+ */
+export const rtCandles = mysqlTable("rt_candles", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 銘柄コード（例: 6976） */
+  symbol: varchar("symbol", { length: 10 }).notNull(),
+  /** 対象日 (YYYY-MM-DD) */
+  tradeDate: varchar("tradeDate", { length: 10 }).notNull(),
+  /** 1分足の時刻 (HH:MM) */
+  candleTime: varchar("candleTime", { length: 5 }).notNull(),
+  /** 始値（円） */
+  open: decimal("open", { precision: 12, scale: 2 }).notNull(),
+  /** 高値（円） */
+  high: decimal("high", { precision: 12, scale: 2 }).notNull(),
+  /** 低値（円） */
+  low: decimal("low", { precision: 12, scale: 2 }).notNull(),
+  /** 終値（円） */
+  close: decimal("close", { precision: 12, scale: 2 }).notNull(),
+  /** 出来高 */
+  volume: bigint("volume", { mode: "number" }).notNull().default(0),
+  /** 板情報スナップショット JSON（板圧力・大口注文・成行比率） */
+  boardSnapshot: json("boardSnapshot").$type<BoardSnapshot | null>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export interface BoardSnapshot {
+  buyPressureRatio: number;   // 買い板合計 / 売り板合計
+  largeBuyWall: boolean;      // 大口買い壁あり
+  largeSellWall: boolean;     // 大口売り壁あり
+  marketOrderRatio: number;   // 成行注文比率
+  signal: "buy_pressure" | "sell_pressure" | "large_buy_wall" | "large_sell_wall" | "market_surge" | "neutral";
+}
+
+export type RtCandle = typeof rtCandles.$inferSelect;
+export type InsertRtCandle = typeof rtCandles.$inferInsert;
+
+/**
+ * リアルタイムシミュレーション取引ログ
+ * 1分足受信時にシグナル判定して記録する架空取引
+ */
+export const rtTrades = mysqlTable("rt_trades", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 対象日 (YYYY-MM-DD) */
+  tradeDate: varchar("tradeDate", { length: 10 }).notNull(),
+  /** 銘柄コード */
+  symbol: varchar("symbol", { length: 10 }).notNull(),
+  /** 銘柄名 */
+  symbolName: varchar("symbolName", { length: 50 }).notNull(),
+  /** 取引種別: buy=買い / sell=売り / short=空売り / cover=買い戻し */
+  action: mysqlEnum("action", ["buy", "sell", "short", "cover"]).notNull(),
+  /** 約定価格（円） */
+  price: decimal("price", { precision: 12, scale: 2 }).notNull(),
+  /** 株数 */
+  shares: int("shares").notNull(),
+  /** 取引金額（円） */
+  amount: bigint("amount", { mode: "number" }).notNull(),
+  /** 損益額（決済時のみ、円） */
+  pnl: bigint("pnl", { mode: "number" }),
+  /** シグナル理由 */
+  reason: text("reason").notNull(),
+  /** エントリー/決済時刻 (HH:MM) */
+  tradeTime: varchar("tradeTime", { length: 5 }).notNull(),
+  /** ポジション方向: long / short */
+  side: mysqlEnum("side", ["long", "short"]).notNull(),
+  /** 板情報シグナル（あれば） */
+  boardSignal: varchar("boardSignal", { length: 30 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type RtTrade = typeof rtTrades.$inferSelect;
+export type InsertRtTrade = typeof rtTrades.$inferInsert;
+
+/**
+ * リアルタイムシミュレーション日次サマリー
+ * 大引け後に集計して保存する当日の成績
+ */
+export const rtDailySummaries = mysqlTable("rt_daily_summaries", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 対象日 (YYYY-MM-DD) */
+  tradeDate: varchar("tradeDate", { length: 10 }).notNull().unique(),
+  /** 元金（円） */
+  initialCapital: bigint("initialCapital", { mode: "number" }).notNull(),
+  /** 当日損益合計（円） */
+  totalPnl: bigint("totalPnl", { mode: "number" }).notNull().default(0),
+  /** 取引回数 */
+  tradesCount: int("tradesCount").notNull().default(0),
+  /** 勝ちトレード数 */
+  winCount: int("winCount").notNull().default(0),
+  /** 負けトレード数 */
+  lossCount: int("lossCount").notNull().default(0),
+  /** 受信した1分足本数 */
+  candlesReceived: int("candlesReceived").notNull().default(0),
+  /** レポートメール送信済みフラグ */
+  reportSent: boolean("reportSent").notNull().default(false),
+  /** レポートメール送信日時 */
+  reportSentAt: timestamp("reportSentAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type RtDailySummary = typeof rtDailySummaries.$inferSelect;
+export type InsertRtDailySummary = typeof rtDailySummaries.$inferInsert;

@@ -322,6 +322,13 @@ export default function Home() {
             </button>
           </Link>
 
+          <Link href="/realtime">
+            <button className="flex items-center space-x-1 px-3 py-1 rounded text-xs font-bold transition-all duration-200 border bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20">
+              <Activity className="w-3.5 h-3.5" />
+              <span>RT取引ログ</span>
+            </button>
+          </Link>
+
           {/* バックテスト */}
           {marketState && (
             <BacktestModal

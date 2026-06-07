@@ -19,6 +19,8 @@ import {
   deletePaperTrade,
   getKabuPlanSettings,
   upsertKabuPlanSettings,
+  getRtTradesForDate,
+  getRtDailySummaryList,
 } from "../db";
 import { MAX_CONCURRENT_POSITIONS } from "@shared/stocks";
 import { generateDailySimReport } from "../simulation";
@@ -495,4 +497,56 @@ export const tradingRouter = router({
       });
       return updated;
     }),
+
+  /**
+   * Windows中継スクリプトから1分足OHLCVを受信してシミュレーションを実行
+   * POST /api/trpc/trading.pushCandle
+   */
+  pushCandle: publicProcedure
+    .input(
+      z.object({
+        symbol: z.string().min(1).max(10),
+        tradeDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        candleTime: z.string().regex(/^\d{2}:\d{2}$/),
+        open: z.number().positive(),
+        high: z.number().positive(),
+        low: z.number().positive(),
+        close: z.number().positive(),
+        volume: z.number().min(0),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { processCandle } = await import("../realtimeSimEngine");
+      const result = await processCandle(input);
+      return result;
+    }),
+
+  /**
+   * 指定日のリアルタイム取引ログを取得
+   */
+  getRtTrades: publicProcedure
+    .input(z.object({ tradeDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+    .query(async ({ input }) => {
+      return getRtTradesForDate(input.tradeDate);
+    }),
+
+  /**
+   * リアルタイム日次サマリー一覧を取得
+   */
+  getRtDailySummaries: publicProcedure
+    .input(z.object({ limit: z.number().min(1).max(60).default(30) }))
+    .query(async ({ input }) => {
+      return getRtDailySummaryList(input.limit);
+    }),
+
+  /**
+   * 現在のオープンポジション一覧を取得（リアルタイム確認用）
+   */
+  getRtOpenPositions: publicProcedure.query(async () => {
+    const { getOpenPositions, getCandleCounters } = await import("../realtimeSimEngine");
+    return {
+      positions: getOpenPositions(),
+      candleCounters: getCandleCounters(),
+    };
+  }),
 });

@@ -583,3 +583,14 @@
 - [x] 板読みシグナル（板圧力・大口注文・成行急増）をanalyzeOrderBook()に実装
 - [x] Web画面にリアルタイム板情報パネルを追加 (RealDataChart.tsx)
 - [x] チェックポイント保存
+
+## Phase 42: リアルタイム取引シミュレーション（1分足+板情報）
+
+- [x] DBにリアルタイム取引ログテーブルを追加（rt_candles, rt_trades, rt_daily_summaries）
+- [x] サーバー側リアルタイムシグナル検出エンジン実装（server/realtimeSimEngine.ts）
+- [x] tRPCエンドポイント追加（pushCandle/getRtTrades/getRtDailySummaries/getRtOpenPositions）
+- [x] 大引け後レポート生成・notifyOwner送信のスケジュールジョブ実装（/api/scheduled/rt-daily-report）
+- [x] Windows中継スクリプト更新（1分足OHLCV集計・送信機能追加）
+- [x] Webアプリにリアルタイム取引ログ画面を追加（/realtime）
+- [x] realtimeSimEngine.test.ts 7テスト全通過
+- [x] チェックポイント保存

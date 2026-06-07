@@ -540,3 +540,151 @@ export async function markKabuPlanReminderSent(id: number): Promise<void> {
     .set({ reminderSent: true, reminderSentAt: new Date() })
     .where(eq(kabuPlanSettings.id, id));
 }
+
+// ============================================================
+// リアルタイムシミュレーション helpers
+// ============================================================
+
+import {
+  rtCandles,
+  rtTrades,
+  rtDailySummaries,
+  type InsertRtCandle,
+  type InsertRtTrade,
+  type RtTrade,
+  type RtDailySummary,
+} from "../drizzle/schema";
+
+/**
+ * 1分足ローソク足を保存する
+ */
+export async function insertRtCandle(data: Omit<InsertRtCandle, "id" | "createdAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(rtCandles).values(data);
+}
+
+/**
+ * 指定日・銘柄の1分足を時刻順に取得する
+ */
+export async function getRtCandles(symbol: string, tradeDate: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(rtCandles)
+    .where(and(eq(rtCandles.symbol, symbol), eq(rtCandles.tradeDate, tradeDate)))
+    .orderBy(rtCandles.candleTime);
+}
+
+/**
+ * リアルタイム架空取引を記録する
+ */
+export async function insertRtTrade(data: Omit<InsertRtTrade, "id" | "createdAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(rtTrades).values(data);
+}
+
+/**
+ * 指定日の架空取引ログを取得する（新しい順）
+ */
+export async function getRtTradesForDate(tradeDate: string): Promise<RtTrade[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(rtTrades)
+    .where(eq(rtTrades.tradeDate, tradeDate))
+    .orderBy(desc(rtTrades.id));
+}
+
+/**
+ * 指定日の日次サマリーを取得する
+ */
+export async function getRtDailySummary(tradeDate: string): Promise<RtDailySummary | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(rtDailySummaries)
+    .where(eq(rtDailySummaries.tradeDate, tradeDate))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * 日次サマリーを保存（初回は挿入、以降は更新）
+ */
+export async function upsertRtDailySummary(data: {
+  tradeDate: string;
+  initialCapital: number;
+  totalPnl: number;
+  tradesCount: number;
+  winCount: number;
+  lossCount: number;
+  candlesReceived: number;
+  reportSent?: boolean;
+  reportSentAt?: Date | null;
+}): Promise<RtDailySummary> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await getRtDailySummary(data.tradeDate);
+  if (existing) {
+    await db
+      .update(rtDailySummaries)
+      .set({
+        initialCapital: data.initialCapital,
+        totalPnl: data.totalPnl,
+        tradesCount: data.tradesCount,
+        winCount: data.winCount,
+        lossCount: data.lossCount,
+        candlesReceived: data.candlesReceived,
+        ...(data.reportSent !== undefined ? { reportSent: data.reportSent } : {}),
+        ...(data.reportSentAt !== undefined ? { reportSentAt: data.reportSentAt } : {}),
+      })
+      .where(eq(rtDailySummaries.id, existing.id));
+  } else {
+    await db.insert(rtDailySummaries).values({
+      tradeDate: data.tradeDate,
+      initialCapital: data.initialCapital,
+      totalPnl: data.totalPnl,
+      tradesCount: data.tradesCount,
+      winCount: data.winCount,
+      lossCount: data.lossCount,
+      candlesReceived: data.candlesReceived,
+      reportSent: data.reportSent ?? false,
+      reportSentAt: data.reportSentAt ?? null,
+    });
+  }
+
+  const updated = await getRtDailySummary(data.tradeDate);
+  if (!updated) throw new Error("Failed to upsert rt daily summary");
+  return updated;
+}
+
+/**
+ * レポート送信済みフラグを立てる
+ */
+export async function markRtDailySummaryReportSent(tradeDate: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(rtDailySummaries)
+    .set({ reportSent: true, reportSentAt: new Date() })
+    .where(eq(rtDailySummaries.tradeDate, tradeDate));
+}
+
+/**
+ * 直近N日の日次サマリー一覧を取得する
+ */
+export async function getRtDailySummaryList(limit = 30): Promise<RtDailySummary[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(rtDailySummaries)
+    .orderBy(desc(rtDailySummaries.tradeDate))
+    .limit(limit);
+}

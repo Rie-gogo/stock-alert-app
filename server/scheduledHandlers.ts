@@ -519,3 +519,142 @@ ${settings.note ? `【メモ】\n${settings.note}\n` : ""}
     });
   }
 }
+
+/**
+ * リアルタイムシミュレーション 大引け後レポートハンドラー
+ * POST /api/scheduled/rt-daily-report
+ * 毎平日 JST 16:00（UTC 7:00）に実行し、当日の架空取引結果をOutlookメールで送信する
+ */
+export async function rtDailyReportHandler(req: Request, res: Response) {
+  try {
+    // Heartbeat認証
+    const user = await sdk.authenticateRequest(req);
+    if (!user.isCron) {
+      return res.status(403).json({ error: "cron-only endpoint" });
+    }
+
+    // 当日の日付（JST）を取得
+    const now = new Date();
+    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const todayStr = jstNow.toISOString().slice(0, 10);
+
+    console.log(`[rt-daily-report] Running end-of-day report for: ${todayStr}`);
+
+    const {
+      getRtTradesForDate,
+      getRtDailySummary,
+      markRtDailySummaryReportSent,
+    } = await import("./db");
+
+    const {
+      forceCloseAllPositions,
+      getOpenPositions,
+    } = await import("./realtimeSimEngine");
+
+    // 残存ポジションを強制決済（引け値が不明なためエントリー価格で決済）
+    const openPositions = getOpenPositions();
+    if (openPositions.length > 0) {
+      console.log(`[rt-daily-report] Force closing ${openPositions.length} open positions...`);
+      const closingPrices = new Map<string, number>();
+      for (const pos of openPositions) {
+        closingPrices.set(pos.symbol, pos.entryPrice); // 引け値不明時はエントリー価格で決済
+      }
+      await forceCloseAllPositions(todayStr, closingPrices);
+    }
+
+    // 当日の取引ログを取得
+    const trades = await getRtTradesForDate(todayStr);
+    const summary = await getRtDailySummary(todayStr);
+
+    // 取引がない場合はスキップ
+    if (trades.length === 0 && !summary) {
+      console.log(`[rt-daily-report] No trades for ${todayStr}, skipping report.`);
+      return res.json({ ok: true, skipped: "no-trades", tradeDate: todayStr });
+    }
+
+    // 既にレポート送信済みの場合はスキップ
+    if (summary?.reportSent) {
+      console.log(`[rt-daily-report] Report already sent for ${todayStr}, skipping.`);
+      return res.json({ ok: true, skipped: "already-sent", tradeDate: todayStr });
+    }
+
+    // 決済済みトレードを集計
+    const closedTrades = trades.filter(t => t.action === "sell" || t.action === "cover");
+    const totalPnl = closedTrades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+    const winTrades = closedTrades.filter(t => (t.pnl ?? 0) > 0);
+    const lossTrades = closedTrades.filter(t => (t.pnl ?? 0) <= 0);
+    const winRate = closedTrades.length > 0 ? (winTrades.length / closedTrades.length * 100).toFixed(1) : "0.0";
+
+    // 銘柄別集計
+    const symbolPnl = new Map<string, number>();
+    for (const t of closedTrades) {
+      symbolPnl.set(t.symbol, (symbolPnl.get(t.symbol) ?? 0) + (t.pnl ?? 0));
+    }
+
+    // メール本文を生成
+    const pnlSign = totalPnl >= 0 ? "+" : "";
+    const subject = `📊 リアルタイム取引シミュレーション結果 ${todayStr} (${pnlSign}${totalPnl.toLocaleString()}円)`;
+
+    const symbolLines = Array.from(symbolPnl.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([sym, pnl]) => {
+        const sign = pnl >= 0 ? "+" : "";
+        return `  ${sym}: ${sign}${pnl.toLocaleString()}円`;
+      })
+      .join("\n");
+
+    const tradeLines = closedTrades
+      .slice(0, 20) // 最大20件
+      .map(t => {
+        const pnlStr = t.pnl !== null ? (t.pnl >= 0 ? `+${t.pnl.toLocaleString()}` : t.pnl.toLocaleString()) : "-";
+        return `  [${t.tradeTime}] ${t.symbol} ${t.action.toUpperCase()} @${Number(t.price).toLocaleString()}円 ×${t.shares}株 損益:${pnlStr}円`;
+      })
+      .join("\n");
+
+    const body = `${subject}
+
+【当日サマリー】
+対象日: ${todayStr}
+元金: ${(summary?.initialCapital ?? 15_000_000).toLocaleString()}円（5銘柄 × 300万円）
+当日損益: ${pnlSign}${totalPnl.toLocaleString()}円
+取引回数: ${closedTrades.length}回（勝: ${winTrades.length} / 負: ${lossTrades.length}）
+勝率: ${winRate}%
+
+【銘柄別損益】
+${symbolLines || "  （取引なし）"}
+
+【取引詳細（最大20件）】
+${tradeLines || "  （取引なし）"}
+
+---
+このメールはStock Alert Appのリアルタイムシミュレーション機能から自動送信されています。
+`;
+
+    // notifyOwner で通知（Outlookメール代替）
+    await notifyOwner({
+      title: subject,
+      content: body,
+    });
+
+    // レポート送信済みフラグを立てる
+    await markRtDailySummaryReportSent(todayStr);
+
+    console.log(`[rt-daily-report] Report sent for ${todayStr}: totalPnl=${totalPnl}, trades=${closedTrades.length}`);
+    return res.json({
+      ok: true,
+      tradeDate: todayStr,
+      totalPnl,
+      tradesCount: closedTrades.length,
+      winRate,
+    });
+
+  } catch (error) {
+    console.error("[rt-daily-report] Handler error:", error);
+    return res.status(500).json({
+      error: String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      context: { url: req.url, taskUid: "rt-daily-report" },
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
