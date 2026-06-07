@@ -23,6 +23,10 @@ import {
   BarChart2,
   AlertTriangle,
   ArrowLeft,
+  BookOpen,
+  Activity,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { Link } from "wouter";
 import ChartComponent from "@/components/ChartComponent";
@@ -92,12 +96,24 @@ const POPULAR_STOCKS = [
   { symbol: "6367.T", name: "ダイキン工業" },
 ];
 
+// kabu STATION APIの銘柄コード変換（Yahoo Finance形式 → 証券コード）
+function toKabuSymbol(yahooSymbol: string): string {
+  return yahooSymbol.replace(".T", "");
+}
+
 export default function RealDataChart() {
   const [symbol, setSymbol] = useState("9984.T");
   const [inputSymbol, setInputSymbol] = useState("9984.T");
   const [range, setRange] = useState<"1d" | "5d" | "1mo">("1d");
   const [interval, setInterval] = useState<"1m" | "5m" | "15m" | "1d">("1m");
   const [selectedCandle, setSelectedCandle] = useState<CandleData | null>(null);
+
+  // 板情報を取得（2秒ごとに自動更新）
+  const kabuSymbol = toKabuSymbol(symbol);
+  const { data: orderBook } = trpc.trading.getOrderBook.useQuery(
+    { symbol: kabuSymbol },
+    { refetchInterval: 2_000, staleTime: 1_000 }
+  );
 
   // データ取得
   const { data, isLoading, error, refetch } = trpc.stockData.getStockChart.useQuery(
@@ -254,11 +270,98 @@ export default function RealDataChart() {
       </header>
 
       <main className="flex-1 p-4 space-y-4">
-        {/* 板情報・歩み値の注意書き */}
-        <div className="bg-secondary/30 border border-border/50 rounded-lg px-4 py-2 text-[11px] text-muted-foreground flex items-center gap-2">
-          <span className="text-yellow-400">⚠</span>
-          <span>このページでは実際の株価チャートとシグナルを表示します。板情報・歩み値はリアルタイムAPIが非公開のため表示できません（シミュレーションはダッシュボードで確認できます）。</span>
-        </div>
+        {/* 板情報パネル */}
+        {orderBook ? (
+          <Card className="border-border bg-card/60">
+            <CardHeader className="py-2 px-3 border-b border-border/50">
+              <CardTitle className="text-xs font-bold flex items-center gap-2">
+                <BookOpen className="w-3.5 h-3.5 text-primary" />
+                <span>板情報（kabu STATION® リアルタイム）</span>
+                <span className="ml-auto flex items-center gap-1 text-[10px] text-emerald-400 font-normal">
+                  <Wifi className="w-3 h-3" />
+                  LIVE
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="py-2 px-3">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                {/* 売板 */}
+                <div>
+                  <p className="text-[10px] text-muted-foreground mb-1 font-bold">売気配（Ask）</p>
+                  <div className="space-y-0.5">
+                    {[...orderBook.asks].reverse().map((ask, i) => (
+                      <div key={i} className="flex items-center gap-2 text-[11px] font-mono">
+                        <span className="text-emerald-400 w-20 text-right">{ask.price.toLocaleString()}</span>
+                        <div className="flex-1 bg-emerald-500/10 rounded-sm" style={{ width: `${Math.min(100, (ask.qty / (orderBook.asks[0]?.qty || 1)) * 100)}%`, minWidth: "4px", height: "12px" }} />
+                        <span className="text-muted-foreground w-16 text-right">{ask.qty.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 現値・板シグナル */}
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <div className="text-center">
+                    <p className="text-[10px] text-muted-foreground">現値</p>
+                    <p className="text-2xl font-extrabold font-mono text-foreground">{orderBook.currentPrice.toLocaleString()}</p>
+                    {orderBook.vwap > 0 && (
+                      <p className="text-[10px] text-muted-foreground">VWAP: {orderBook.vwap.toLocaleString()}</p>
+                    )}
+                  </div>
+                  {/* 板シグナル */}
+                  {orderBook.boardSignals && orderBook.boardSignals.length > 0 && (
+                    <div className="w-full space-y-1">
+                      {orderBook.boardSignals.map((sig, i) => (
+                        <div key={i} className={`text-[10px] px-2 py-1 rounded font-bold text-center ${
+                          sig.type === "board_buy_pressure" || sig.type === "large_bid_wall" || sig.type === "market_order_surge"
+                            ? "bg-destructive/20 text-destructive"
+                            : "bg-emerald-500/20 text-emerald-400"
+                        }`}>
+                          {sig.type === "board_buy_pressure" ? "▲ 買い優勢" :
+                           sig.type === "board_sell_pressure" ? "▼ 売り優勢" :
+                           sig.type === "large_bid_wall" ? "🧱 大口買い壁" :
+                           sig.type === "large_ask_wall" ? "🧱 大口売り壁" :
+                           "⚡ 成行急増"}
+                          <span className="ml-1 font-normal opacity-80">({(sig.strength * 100).toFixed(0)}%)</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* 成行注文 */}
+                  <div className="w-full text-[10px] text-muted-foreground space-y-0.5">
+                    <div className="flex justify-between">
+                      <span>成行買い</span>
+                      <span className="text-destructive font-mono">{orderBook.marketOrderBuyQty.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>成行売り</span>
+                      <span className="text-emerald-400 font-mono">{orderBook.marketOrderSellQty.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 買板 */}
+                <div>
+                  <p className="text-[10px] text-muted-foreground mb-1 font-bold">買気配（Bid）</p>
+                  <div className="space-y-0.5">
+                    {orderBook.bids.map((bid, i) => (
+                      <div key={i} className="flex items-center gap-2 text-[11px] font-mono">
+                        <span className="text-destructive w-20 text-right">{bid.price.toLocaleString()}</span>
+                        <div className="flex-1 bg-destructive/10 rounded-sm" style={{ width: `${Math.min(100, (bid.qty / (orderBook.bids[0]?.qty || 1)) * 100)}%`, minWidth: "4px", height: "12px" }} />
+                        <span className="text-muted-foreground w-16 text-right">{bid.qty.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="bg-secondary/30 border border-border/50 rounded-lg px-4 py-2 text-[11px] text-muted-foreground flex items-center gap-2">
+            <WifiOff className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+            <span>板情報: kabu STATION®中継スクリプトが未接続です。Windowsで <code className="bg-secondary px-1 rounded">kabu_board_relay.py</code> を起動すると、リアルタイム板情報が表示されます。</span>
+          </div>
+        )}
 
         {/* エラー表示 */}
         {error && (

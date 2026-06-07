@@ -418,6 +418,57 @@ export const tradingRouter = router({
     }),
 
   /**
+   * Windows中継スクリプトから板情報を受信・キャッシュ
+   * POST /api/board/push エンドポイントで呼び出す
+   */
+  pushOrderBook: publicProcedure
+    .input(
+      z.object({
+        symbol: z.string(),
+        symbolName: z.string(),
+        currentPrice: z.number(),
+        currentPriceTime: z.string(),
+        asks: z.array(z.object({ price: z.number(), qty: z.number() })),
+        bids: z.array(z.object({ price: z.number(), qty: z.number() })),
+        marketOrderSellQty: z.number().default(0),
+        marketOrderBuyQty: z.number().default(0),
+        overSellQty: z.number().default(0),
+        underBuyQty: z.number().default(0),
+        vwap: z.number().default(0),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { updateOrderBook } = await import("../kabuStation");
+      updateOrderBook({ ...input, receivedAt: Date.now() });
+      return { success: true };
+    }),
+
+  /**
+   * 特定銘柄の板情報を取得
+   */
+  getOrderBook: publicProcedure
+    .input(z.object({ symbol: z.string() }))
+    .query(async ({ input }) => {
+      const { getOrderBook, analyzeOrderBook } = await import("../kabuStation");
+      const book = getOrderBook(input.symbol);
+      if (!book) return null;
+      const signals = analyzeOrderBook(book);
+      return { ...book, boardSignals: signals };
+    }),
+
+  /**
+   * 全銘柄の板情報を一括取得
+   */
+  getAllOrderBooks: publicProcedure.query(async () => {
+    const { getAllOrderBooks, analyzeOrderBook } = await import("../kabuStation");
+    const books = getAllOrderBooks();
+    return books.map((book) => ({
+      ...book,
+      boardSignals: analyzeOrderBook(book),
+    }));
+  }),
+
+  /**
    * kabuステーション® プラン設定を取得
    */
   getKabuPlanSettings: publicProcedure.query(async () => {

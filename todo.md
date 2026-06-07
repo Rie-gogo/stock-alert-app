@@ -573,3 +573,13 @@
 - [x] 期限１週間前にOutlookメールでリマインドするスケジュールジョブを実装
 - [x] Web画面にプラン期限表示・更新UIを追加
 - [x] チェックポイント保存
+
+## Phase 41: kabu STATION API 板情報統合
+
+- [x] kabu STATION APIパスワードをシークレットに登録
+- [x] 板情報キャッシュモジュール (server/kabuStation.ts) を実装
+- [x] tRPCエンドポイント (pushOrderBook/getOrderBook/getAllOrderBooks) を実装
+- [x] Windows用Python中継スクリプト (scripts/kabu_board_relay.py) を作成
+- [x] 板読みシグナル（板圧力・大口注文・成行急増）をanalyzeOrderBook()に実装
+- [x] Web画面にリアルタイム板情報パネルを追加 (RealDataChart.tsx)
+- [x] チェックポイント保存
