@@ -377,14 +377,12 @@ export default function AlgorithmPage() {
                 </Button>
               </div>
 
-              {/* Premiumプラン継続条件 */}
+              {/* プラン継続条件 */}
               <div className="bg-secondary/20 rounded-lg p-2.5 space-y-1.5">
-                <p className="text-[10px] font-bold text-foreground">Premiumプラン継続条件（いずれか1つ）</p>
+                <p className="text-[10px] font-bold text-foreground">Professionalプラン継続条件（すべて満たす）</p>
                 {[
-                  '信用取引「大口優遇シルバー」以上適用',
-                  '前月の先物・オプション手数料が11万円以上',
-                  '前月の米国株手数料が11万円以上',
-                  '前月の預り資産が5,000万円以上',
+                  '信用取引口座または先物オプション取引口座を開設済み',
+                  '前々々月〜前営業日の間に当社全取引で約定回数1回以上',
                 ].map((cond, i) => (
                   <div key={i} className="flex items-start space-x-1.5">
                     <span className="text-[9px] text-primary mt-0.5">●</span>
@@ -392,7 +390,10 @@ export default function AlgorithmPage() {
                   </div>
                 ))}
                 <p className="text-[9px] text-muted-foreground pt-1 border-t border-border/30">
-                  条件未達成の場合、翌営業日よるProfessionalプランに自動降格（API引き続き利用可）
+                  ※ 条件未達成の場合、翌日より通常プランに自動降格（API利用不可）
+                </p>
+                <p className="text-[9px] text-muted-foreground">
+                  ※ 初回ログイン時は翌々月第1営業日まで自動適用（現在の期限: 8月3日）
                 </p>
               </div>
             </CardContent>
