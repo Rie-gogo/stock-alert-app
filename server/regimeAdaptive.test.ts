@@ -33,10 +33,10 @@ describe("evaluateRegimeGates（レジーム方向ゲート）", () => {
     expect(r.allowLong).toBe(false);
   });
 
-  it("市場全体が下落ムードのときはロングを禁止する", () => {
-    // 個別は上昇でも、市場全体が下げていればロングしない
+  it("市場全体が下落ムードでも個別シグナルが上昇ならロングを許可する（HybridA）", () => {
+    // HybridA: 下落相場でも個別の上昇シグナルがあればLONGを許可
     const r = evaluateRegimeGates({ ...base, slope: 0.001, flow: 1000, mktBias: -0.01 });
-    expect(r.allowLong).toBe(false);
+    expect(r.allowLong).toBe(true);
   });
 
   it("市場全体が上昇ムードのときはショートを禁止する", () => {

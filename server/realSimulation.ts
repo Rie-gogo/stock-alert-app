@@ -273,7 +273,8 @@ export function evaluateRegimeGates(params: {
   const flowDown = flow < 0;
   const mktUp = mktBias > MARKET_REGIME_THRESHOLD;
   const mktDown = mktBias < -MARKET_REGIME_THRESHOLD;
-  const allowLong = stockTrendUp && flowUp && !mktDown && !inWarmup && !halted;
+  // HybridA: 上昇相場(mktUp)のみSHORT禁止。下落相場でもLONGを許可（地合いに関わらず個別シグナル優先）
+  const allowLong = stockTrendUp && flowUp && !inWarmup && !halted;
   const allowShort = stockTrendDown && flowDown && !mktUp && !inWarmup && !halted && !isHighVolDay;
   return { allowLong, allowShort };
 }
