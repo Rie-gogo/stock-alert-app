@@ -11,6 +11,7 @@ import {
   updateAlgorithmConfig,
   saveAlgorithmImprovement,
   getRecentStats,
+  getDb,
 } from "./db";
 import { generateRealDailyReport } from "./realSimulation";
 import { invokeLLM } from "./_core/llm";
@@ -654,6 +655,49 @@ ${tradeLines || "  （取引なし）"}
       error: String(error),
       stack: error instanceof Error ? error.stack : undefined,
       context: { url: req.url, taskUid: "rt-daily-report" },
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+// ============================================================
+// サーバーウォームアップ（毎平日 JST 8:44 = UTC 23:44 前日）
+// Manusサンドボックスのスリープを防ぎ、取引時間前にサーバーを起動状態にする
+// ============================================================
+export async function serverWarmupHandler(req: Request, res: Response) {
+  try {
+    const user = await sdk.authenticateRequest(req);
+    if (!user.isCron) {
+      return res.status(403).json({ error: "cron-only" });
+    }
+
+    const nowJst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const jstStr = nowJst.toISOString().replace("T", " ").substring(0, 19) + " JST";
+    console.log(`[server-warmup] Warmup triggered at ${jstStr}`);
+
+    // DBへの軽量クエリでDBコネクションもウォームアップ
+    const { rtCandles } = await import("../drizzle/schema");
+    const { sql } = await import("drizzle-orm");
+    const dbInstance = await getDb();
+    const countResult = dbInstance
+      ? await dbInstance.select({ count: sql<number>`count(*)` }).from(rtCandles).limit(1)
+      : [];
+    const candleCount = countResult[0]?.count ?? 0;
+
+    console.log(`[server-warmup] Server is warm. DB candle count: ${candleCount}`);
+
+    return res.json({
+      ok: true,
+      message: "Server warmed up",
+      time: jstStr,
+      dbCandleCount: candleCount,
+    });
+  } catch (error) {
+    console.error("[server-warmup] Handler error:", error);
+    return res.status(500).json({
+      error: String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      context: { url: req.url },
       timestamp: new Date().toISOString(),
     });
   }

@@ -8,7 +8,7 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { dailySimulationHandler, manualSimulationHandler, kabuPlanReminderHandler, rtDailyReportHandler } from "../scheduledHandlers";
+import { dailySimulationHandler, manualSimulationHandler, kabuPlanReminderHandler, rtDailyReportHandler, serverWarmupHandler } from "../scheduledHandlers";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -46,6 +46,8 @@ async function startServer() {
   app.post("/api/scheduled/kabu-plan-reminder", kabuPlanReminderHandler);
   // リアルタイムシミュレーション 大引け後レポート（毎平日JST 16:00実行）
   app.post("/api/scheduled/rt-daily-report", rtDailyReportHandler);
+  // サーバーウォームアップ（毎平日JST 8:44実行）
+  app.post("/api/scheduled/server-warmup", serverWarmupHandler);
 
   // tRPC API
   app.use(
