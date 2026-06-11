@@ -65,7 +65,7 @@ async function fetchStockChart(query: Record<string, unknown>): Promise<unknown>
 
 // ---- テクニカル指標計算 ----
 
-function calcMA(data: number[], period: number): (number | null)[] {
+export function calcMA(data: number[], period: number): (number | null)[] {
   const result: (number | null)[] = new Array(data.length).fill(null);
   for (let i = period - 1; i < data.length; i++) {
     const slice = data.slice(i - period + 1, i + 1);
@@ -74,7 +74,7 @@ function calcMA(data: number[], period: number): (number | null)[] {
   return result;
 }
 
-function calcRSI(data: number[], period = 14): (number | null)[] {
+export function calcRSI(data: number[], period = 14): (number | null)[] {
   const result: (number | null)[] = new Array(data.length).fill(null);
   if (data.length < period + 1) return result;
 
@@ -104,7 +104,7 @@ function calcRSI(data: number[], period = 14): (number | null)[] {
   return result;
 }
 
-function calcBollinger(
+export function calcBollinger(
   data: number[],
   period = 20,
   stdDev = 2

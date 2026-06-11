@@ -17,7 +17,7 @@
  */
 
 import { insertRtCandle, insertRtTrade, upsertRtDailySummary, getRtTradesForDate, getRtCandlesAllForDate } from "./db";
-import { detectSignals, type CandleWithSignal } from "./routers/stockData";
+import { detectSignals, calcMA, calcRSI, calcBollinger, type CandleWithSignal } from "./routers/stockData";
 import { getOrderBook, analyzeOrderBook } from "./kabuStation";
 import { getStockName } from "../shared/stocks";
 import type { BoardSnapshot } from "../drizzle/schema";
@@ -161,7 +161,23 @@ export async function restoreBuffersFromDb(): Promise<void> {
         bbLower: null,
       }));
 
-      // detectSignalsでMA/RSI/BBを一括計算してバッファを初期化
+      // MA5・MA25・RSI・BBを事前計算してバッファに設定
+      // （detectSignalsは入力のma5/ma25/rsi/bbをそのまま使うため、事前計算が必須）
+      const closesForRestore = buf.map(c => c.close);
+      const ma5R = calcMA(closesForRestore, 5);
+      const ma25R = calcMA(closesForRestore, 25);
+      const rsiR = calcRSI(closesForRestore, 14);
+      const bbR = calcBollinger(closesForRestore, 20);
+      buf.forEach((c, i) => {
+        c.ma5 = ma5R[i];
+        c.ma25 = ma25R[i];
+        c.rsi = rsiR[i];
+        c.bbUpper = bbR.upper[i];
+        c.bbMiddle = bbR.middle[i];
+        c.bbLower = bbR.lower[i];
+      });
+
+      // detectSignalsでシグナルを一括計算してバッファを初期化
       const withSignals = detectSignals(buf);
       candleBuffers.set(symbol, withSignals);
       candleCounters.set(symbol, candles.length);
@@ -306,8 +322,23 @@ export async function processCandle(candle: RtCandle1Min): Promise<{
     bbLower: null,
   };
 
-  // MA/RSI/BBを計算するため、バッファに追加してからdetectSignalsを実行
+  // バッファに追加
   buffer.push(candleForSignal);
+
+  // MA5・MA25・RSI・BBを計算してバッファの最新足に設定
+  // （detectSignalsは入力のma5/ma25/rsi/bbをそのまま使うため、事前計算が必須）
+  const closes = buffer.map(c => c.close);
+  const ma5Series = calcMA(closes, 5);
+  const ma25SeriesCalc = calcMA(closes, 25);
+  const rsiSeries = calcRSI(closes, 14);
+  const bbSeries = calcBollinger(closes, 20);
+  const lastIdx = buffer.length - 1;
+  buffer[lastIdx].ma5 = ma5Series[lastIdx];
+  buffer[lastIdx].ma25 = ma25SeriesCalc[lastIdx];
+  buffer[lastIdx].rsi = rsiSeries[lastIdx];
+  buffer[lastIdx].bbUpper = bbSeries.upper[lastIdx];
+  buffer[lastIdx].bbMiddle = bbSeries.middle[lastIdx];
+  buffer[lastIdx].bbLower = bbSeries.lower[lastIdx];
 
   // カウンター更新
   candleCounters.set(symbol, (candleCounters.get(symbol) ?? 0) + 1);
