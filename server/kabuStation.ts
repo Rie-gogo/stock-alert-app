@@ -39,8 +39,9 @@ export type OrderBookSignal = {
 // メモリキャッシュ（銘柄コード → 最新板情報）
 const orderBookCache = new Map<string, KabuOrderBook>();
 
-// キャッシュの最大保持時間（5秒）
-const CACHE_TTL_MS = 5_000;
+// キャッシュの最大保持時間（60秒）※案A: 2026-06-12 板情報取得率改善のため5秒→60秒に延長
+// 最終目標: 案C（1分足+板情報の同時送信）に移行後、再度短縮を検討
+const CACHE_TTL_MS = 60_000;
 
 /**
  * 板情報をキャッシュに保存（Windows中継スクリプトから呼ばれる）
