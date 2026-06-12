@@ -32,8 +32,8 @@ const INITIAL_CAPITAL_PER_STOCK = 3_000_000;
 /** ロット計算: 元金の何%を1トレードに使うか */
 const LOT_RATIO = 0.9;
 
-/** 損切り率（%）: エントリー価格から何%下落で損切り（プランB: -0.7%/高安値トリガー） */
-const STOP_LOSS_PERCENT = 0.7;
+/** 損切り率（%）: エントリー価格から何%下落で損切り（プランB: -0.5%/高安値トリガー） */
+const STOP_LOSS_PERCENT = 0.5;
 
 /** 利確率（%）: エントリー価格から何%上昇で利確 */
 const TAKE_PROFIT_PERCENT = 1.5;
