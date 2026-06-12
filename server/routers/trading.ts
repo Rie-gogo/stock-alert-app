@@ -522,7 +522,69 @@ export const tradingRouter = router({
     }),
 
   /**
-   * 指定日のリアルタイム取引ログを取得
+   * [案C] 1分足と板情報を同時受信するエンドポイント
+   * Windows側スクリプトが1分足確定時にREST APIで板情報を取得し、
+   * 1分足データと一緒に送信する。既存のpushCandleは変更なし。
+   */
+  pushCandleWithBoard: publicProcedure
+    .input(
+      z.object({
+        // 1分足データ
+        symbol: z.string().min(1).max(10),
+        tradeDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        candleTime: z.string().regex(/^\d{2}:\d{2}$/),
+        open: z.number().positive(),
+        high: z.number().positive(),
+        low: z.number().positive(),
+        close: z.number().positive(),
+        volume: z.number().min(0),
+        // 板情報データ（オプション：取得できなかった場合はnull）
+        board: z
+          .object({
+            symbolName: z.string(),
+            currentPrice: z.number(),
+            currentPriceTime: z.string(),
+            asks: z.array(z.object({ price: z.number(), qty: z.number() })),
+            bids: z.array(z.object({ price: z.number(), qty: z.number() })),
+            marketOrderSellQty: z.number().default(0),
+            marketOrderBuyQty: z.number().default(0),
+            overSellQty: z.number().default(0),
+            underBuyQty: z.number().default(0),
+            vwap: z.number().default(0),
+          })
+          .nullable()
+          .optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { updateOrderBook } = await import("../kabuStation");
+      const { processCandle } = await import("../realtimeSimEngine");
+
+      // 板情報が含まれていれば先にキャッシュを更新（1分足処理前に更新することで必ず板情報が反映される）
+      if (input.board) {
+        updateOrderBook({
+          symbol: input.symbol,
+          ...input.board,
+          receivedAt: Date.now(),
+        });
+      }
+
+      // 1分足を処理（板情報キャッシュが更新済みの状態でシグナル判定される）
+      const result = await processCandle({
+        symbol: input.symbol,
+        tradeDate: input.tradeDate,
+        candleTime: input.candleTime,
+        open: input.open,
+        high: input.high,
+        low: input.low,
+        close: input.close,
+        volume: input.volume,
+      });
+      return result;
+    }),
+
+  /**
+   * 指定日のリアルタイム取徕ログを取得
    */
   getRtTrades: publicProcedure
     .input(z.object({ tradeDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
