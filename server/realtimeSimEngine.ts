@@ -94,6 +94,25 @@ const candleBuffers = new Map<string, CandleWithSignal[]>();
 /** 銘柄ごとのオープンポジション（1銘柄1ポジションまで） */
 const openPositions = new Map<string, OpenPosition>();
 
+/**
+ * ダウ理論（上昇）押し目確認ステートマシン
+ * 高値更新シグナル受信後、一度押し（下落）が入り直近安値を割らずに再上昇した足でエントリーする。
+ */
+interface PullbackState {
+  recentSwingLow: number;  // 損切りライン（この安値を割ったらキャンセル）
+  signalPrice: number;     // シグナル発生時の価格
+  waitCount: number;       // 待機足数カウンター
+  pulledBack: boolean;     // 一度押しが入ったか
+  reason: string;          // エントリー理由
+  boardSignal?: string;    // 板情報シグナル
+}
+
+/** 銘柄ごとの押し目確認待ちステート（ダウ理論上昇のみ） */
+const pullbackStates = new Map<string, PullbackState>();
+
+/** 押し目確認の最大待機足数 */
+const PULLBACK_MAX_WAIT = 5;
+
 /** 当日の日付（日付が変わったらバッファをリセット） */
 let currentTradeDate = "";
 
@@ -125,6 +144,7 @@ function resetIfNewDay(tradeDate: string): void {
     candleBuffers.clear();
     openPositions.clear();
     candleCounters.clear();
+    pullbackStates.clear(); // 日付変更時に押し目確認ステートもリセット
     currentTradeDate = tradeDate;
     bufferRestored = false; // 日付変更時は復元フラグもリセット
   }
@@ -426,6 +446,48 @@ export async function processCandle(candle: RtCandle1Min): Promise<{
   const isBullish = priceChangeRatio >= 0.2;   // 始値比+0.2%以上 → 上昇相場
   // const isBearish = priceChangeRatio <= -0.2; // 始値比-0.2%以下 → 下落相場（LONGもSHORTもOK）
 
+  // ---- 押し目確認ステートマシン処理 (ダウ理論上昇のみ) ----
+  const pullbackState = pullbackStates.get(symbol);
+  if (pullbackState) {
+    pullbackState.waitCount++;
+
+    // 直近安値を割ったらキャンセル
+    if (candle.low < pullbackState.recentSwingLow) {
+      pullbackStates.delete(symbol);
+      console.log(`[RealtimeSim] ${symbol} 押し目確認キャンセル: 安値割れ (${candle.low} < ${pullbackState.recentSwingLow})`);
+      return { symbol, tradeDate, candleTime, action: "none" };
+    }
+
+    // 最大待機足数超過でキャンセル
+    if (pullbackState.waitCount > PULLBACK_MAX_WAIT) {
+      pullbackStates.delete(symbol);
+      console.log(`[RealtimeSim] ${symbol} 押し目確認キャンセル: 待機タイムアウト (${pullbackState.waitCount}本超過)`);
+      return { symbol, tradeDate, candleTime, action: "none" };
+    }
+
+    // 押しが入ったか確認（現在足の終値がシグナル発生時価格より下）
+    if (!pullbackState.pulledBack && candle.close < pullbackState.signalPrice) {
+      pullbackState.pulledBack = true;
+    }
+
+    // 押し後に再上昇した足でエントリー
+    if (pullbackState.pulledBack && candle.close > pullbackState.signalPrice) {
+      pullbackStates.delete(symbol);
+      // 板情報チェック
+      if (hasBoardCounterWall(boardSnapshot, "long")) {
+        return { symbol, tradeDate, candleTime, action: "none" };
+      }
+      if (boardSnapshot && boardSnapshot.signal === "sell_pressure") {
+        return { symbol, tradeDate, candleTime, action: "none" };
+      }
+      console.log(`[RealtimeSim] ${symbol} 押し目確認後エントリー: ${pullbackState.reason}`);
+      return await enterPosition("long", candle, tradeDate, candleTime, `押し目確認: ${pullbackState.reason}`, boardSnapshot);
+    }
+
+    // まだ待機中
+    return { symbol, tradeDate, candleTime, action: "none" };
+  }
+
   // ---- 買いエントリー ----
   if (sig.type === "buy") {
     // 板情報で大口売り壁がある場合は抑制
@@ -434,6 +496,20 @@ export async function processCandle(candle: RtCandle1Min): Promise<{
     }
     // 板情報が売り優勢の場合も抑制
     if (boardSnapshot && boardSnapshot.signal === "sell_pressure") {
+      return { symbol, tradeDate, candleTime, action: "none" };
+    }
+
+    // ダウ理論（上昇）シグナルは押し目確認ステートマシンに登録して待機
+    if (sig.reason.startsWith("ダウ理論: 直近高値更新") && sig.recentSwingLow != null) {
+      pullbackStates.set(symbol, {
+        recentSwingLow: sig.recentSwingLow,
+        signalPrice: candle.close,
+        waitCount: 0,
+        pulledBack: false,
+        reason: sig.reason,
+        boardSignal: boardSnapshot?.signal ?? undefined,
+      });
+      console.log(`[RealtimeSim] ${symbol} 押し目待機開始: ${sig.reason} (SwingLow:${sig.recentSwingLow})`);
       return { symbol, tradeDate, candleTime, action: "none" };
     }
 

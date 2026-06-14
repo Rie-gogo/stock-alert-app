@@ -144,7 +144,7 @@ export interface CandleWithSignal {
   bbLower: number | null;
   /** VWAP（出来高加重平均価格）。当日の累積計算値。 */
   vwap?: number | null;
-  signal?: { type: "buy" | "sell" | "warn"; reason: string; confidence?: SignalConfidence };
+  signal?: { type: "buy" | "sell" | "warn"; reason: string; confidence?: SignalConfidence; recentSwingLow?: number | null; recentSwingHigh?: number | null };
 }
 
 export function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLower = 30): CandleWithSignal[] {
@@ -217,7 +217,7 @@ export function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLow
       }
     }
 
-    let candidate: { type: "buy" | "sell" | "warn"; reason: string } | null = null;
+    let candidate: { type: "buy" | "sell" | "warn"; reason: string; recentSwingLow?: number | null; recentSwingHigh?: number | null } | null = null;
 
     // ---- VWAPクロス判定 ----
     const vwapCurr = vwapSeries[i];
@@ -228,7 +228,7 @@ export function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLow
       prev.close > vwapPrev && c.close <= vwapCurr; // 前足がVWAP以上→現足がVWAP以下（下抜け）
 
     // ---- ダウ理論スイング判定 ----
-    const { swingHighBreak, swingLowBreak } = dowSwings[i];
+    const { swingHighBreak, swingLowBreak, recentSwingLow, recentSwingHigh } = dowSwings[i];
 
     // ---- ローソク足パターン判定 ----
     const longUpperShadow = isLongUpperShadow(c);
@@ -252,8 +252,8 @@ export function detectSignals(candles: CandleWithSignal[], rsiUpper = 70, rsiLow
         // VWAPを上抜け: 買い優勢に転換（下落相場では抑制）
         candidate = { type: "buy", reason: `VWAPクロス上抜け (VWAP:${vwapCurr?.toFixed(1)})` };
       } else if (swingHighBreak && c5 > c25 && regime !== "down") {
-        // ダウ理論: 直近高値更新 + 上昇トレンド中 → 上昇継続シグナル
-        candidate = { type: "buy", reason: `ダウ理論: 直近高値更新 (上昇トレンド継続)` };
+        // ダウ理論: 直近高値更新 + 上昇トレンド中 → 上昇継続シグナル（押し目確認のためrecentSwingLowを付加）
+        candidate = { type: "buy", reason: `ダウ理論: 直近高値更新 (上昇トレンド継続)`, recentSwingLow };
       } else if (longLowerShadow && cRsi <= 45 && regime !== "down") {
         // 長い下ヒゲ: 売り圧力を跳ね返した底値シグナル（RSI低め=売られすぎ圏）
         candidate = { type: "buy", reason: `長い下ヒゲ (底値反転シグナル, RSI:${cRsi}%)` };

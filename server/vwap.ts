@@ -69,9 +69,9 @@ export function calcVWAP(candles: VwapCandle[]): (number | null)[] {
 export function calcDowSwings(
   candles: VwapCandle[],
   lookback = 20
-): { swingHighBreak: boolean; swingLowBreak: boolean }[] {
+): { swingHighBreak: boolean; swingLowBreak: boolean; recentSwingLow: number | null; recentSwingHigh: number | null }[] {
   return candles.map((c, i) => {
-    if (i < lookback) return { swingHighBreak: false, swingLowBreak: false };
+    if (i < lookback) return { swingHighBreak: false, swingLowBreak: false, recentSwingLow: null, recentSwingHigh: null };
 
     const window = candles.slice(i - lookback, i); // 直前lookback本（現在足は含まない）
     const prevHigh = Math.max(...window.map(w => w.high));
@@ -80,6 +80,8 @@ export function calcDowSwings(
     return {
       swingHighBreak: c.high > prevHigh, // 直近高値を更新 → 上昇トレンド継続
       swingLowBreak: c.low < prevLow,    // 直近安値を更新 → 下落トレンド継続
+      recentSwingLow: prevLow,           // 押し目確認用: 直近スイング安値
+      recentSwingHigh: prevHigh,         // 戻り確認用: 直近スイング高値
     };
   });
 }
