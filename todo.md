@@ -616,3 +616,10 @@
 ## ダウ理論（上昇）押し目確認実装（2026-06-14）
 - [ ] realtimeSimEngine.ts: ダウ理論（上昇）シグナル受信後に押し目確認ステートマシンを追加（最大5本待ち・直近安値割れでキャンセル）
 - [ ] チェックポイント保存
+
+## 5分足上位足フィルター実装（2026-06-15）
+- [x] vwap.ts に buildHigherTfCandles / calcSMA / getHigherTfTrend ヘルパーを追加
+- [x] realtimeSimEngine.ts のダウ理論シグナル処理に5分足フィルターを適用
+- [x] realtimeSimEngine.test.ts にフィルターのユニットテストを追加
+- [x] TypeScript 0エラー確認・全テスト通過確認（189テスト全通過）
+- [ ] チェックポイント保存

@@ -396,3 +396,119 @@ export function detectHeadAndShoulders(
     return { isHeadAndShoulders, isInverseHeadAndShoulders, neckline };
   });
 }
+
+/**
+ * 上位足（N分足）合成ヘルパー
+ *
+ * 1分足配列を受け取り、tf_minutes 分足に集約して返す。
+ * 例: tf_minutes=5 → 5分足を合成
+ *
+ * @param candles 1分足配列（time フィールドは "HH:MM" 形式）
+ * @param tfMinutes 集約する分数（5 or 15 など）
+ * @returns 上位足ローソク足配列
+ */
+export function buildHigherTfCandles(
+  candles: VwapCandle[],
+  tfMinutes: number
+): VwapCandle[] {
+  if (candles.length === 0) return [];
+
+  const result: VwapCandle[] = [];
+  let group: VwapCandle[] = [];
+  let currentBarIndex = -1;
+
+  for (const c of candles) {
+    // time フィールドから barIndex を計算
+    // VwapCandle に time プロパティがない場合は dayKey を使う
+    // ここでは candles が CandleWithIndicators 相当なので time を持つ想定
+    const timeStr = (c as unknown as { time?: string }).time;
+    let barIndex = currentBarIndex;
+    if (timeStr) {
+      const [hStr, mStr] = timeStr.split(":");
+      const totalMin = parseInt(hStr, 10) * 60 + parseInt(mStr, 10);
+      barIndex = Math.floor(totalMin / tfMinutes);
+    }
+
+    if (group.length > 0 && barIndex !== currentBarIndex) {
+      // バーを確定
+      result.push({
+        open: group[0].open,
+        high: Math.max(...group.map(g => g.high)),
+        low: Math.min(...group.map(g => g.low)),
+        close: group[group.length - 1].close,
+        volume: group.reduce((s, g) => s + g.volume, 0),
+        dayKey: group[0].dayKey,
+      });
+      group = [];
+    }
+    currentBarIndex = barIndex;
+    group.push(c);
+  }
+
+  // 最後のグループを確定（未完成バーも含む）
+  if (group.length > 0) {
+    result.push({
+      open: group[0].open,
+      high: Math.max(...group.map(g => g.high)),
+      low: Math.min(...group.map(g => g.low)),
+      close: group[group.length - 1].close,
+      volume: group.reduce((s, g) => s + g.volume, 0),
+      dayKey: group[0].dayKey,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * 単純移動平均（SMA）を計算する
+ *
+ * @param values 数値配列
+ * @param period 期間
+ * @returns 各インデックスのSMA（期間未満は null）
+ */
+export function calcSMA(values: number[], period: number): (number | null)[] {
+  return values.map((_, i) => {
+    if (i < period - 1) return null;
+    const slice = values.slice(i - period + 1, i + 1);
+    return slice.reduce((s, v) => s + v, 0) / period;
+  });
+}
+
+/**
+ * 上位足トレンド判定
+ *
+ * 1分足配列の先頭から currentIdx 本目（含む）までを使って
+ * tfMinutes 足を合成し、MA5 vs MA25 でトレンドを判定する。
+ *
+ * @param candles 1分足配列（全体）
+ * @param currentIdx 現在の1分足インデックス
+ * @param tfMinutes 上位足の分数（5 or 15）
+ * @param maFast 短期MA期間（デフォルト5）
+ * @param maSlow 長期MA期間（デフォルト25）
+ * @returns "up" | "down" | "neutral"
+ */
+export function getHigherTfTrend(
+  candles: VwapCandle[],
+  currentIdx: number,
+  tfMinutes: number,
+  maFast = 5,
+  maSlow = 25
+): "up" | "down" | "neutral" {
+  const candlesSoFar = candles.slice(0, currentIdx + 1);
+  const htf = buildHigherTfCandles(candlesSoFar, tfMinutes);
+
+  if (htf.length < maSlow) return "neutral"; // MA計算に必要な本数が足りない
+
+  const closes = htf.map(c => c.close);
+  const fastMA = calcSMA(closes, maFast);
+  const slowMA = calcSMA(closes, maSlow);
+
+  const fast = fastMA[fastMA.length - 1];
+  const slow = slowMA[slowMA.length - 1];
+
+  if (fast === null || slow === null) return "neutral";
+  if (fast > slow) return "up";
+  if (fast < slow) return "down";
+  return "neutral";
+}

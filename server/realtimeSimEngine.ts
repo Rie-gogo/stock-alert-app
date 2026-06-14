@@ -19,6 +19,7 @@
 import { insertRtCandle, insertRtTrade, upsertRtDailySummary, getRtTradesForDate, getRtCandlesAllForDate } from "./db";
 import { detectSignals, calcMA, calcRSI, calcBollinger, type CandleWithSignal } from "./routers/stockData";
 import { getOrderBook, analyzeOrderBook, calcExtendedBoardFields } from "./kabuStation";
+import { getHigherTfTrend } from "./vwap";
 import { getStockName } from "../shared/stocks";
 import type { BoardSnapshot } from "../drizzle/schema";
 
@@ -501,6 +502,13 @@ export async function processCandle(candle: RtCandle1Min): Promise<{
 
     // ダウ理論（上昇）シグナルは押し目確認ステートマシンに登録して待機
     if (sig.reason.startsWith("ダウ理論: 直近高値更新") && sig.recentSwingLow != null) {
+      // ---- 5分足上位足フィルター ----
+      // 5分足 MA5 > MA25（上昇トレンド）のときのみエントリーを許可する
+      const htfTrend = getHigherTfTrend(buffer, buffer.length - 1, 5);
+      if (htfTrend !== "up") {
+        console.log(`[RealtimeSim] ${symbol} ダウ理論上昇シグナル: 5分足フィルターにより抑制 (上位足トレンド: ${htfTrend})`);
+        return { symbol, tradeDate, candleTime, action: "none" };
+      }
       pullbackStates.set(symbol, {
         recentSwingLow: sig.recentSwingLow,
         signalPrice: candle.close,
