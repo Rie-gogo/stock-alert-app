@@ -634,4 +634,4 @@
 - [x] realtimeSimEngine.tsに大台シグナルの5本維持確認ステートマシンを追加
 - [x] realtimeSimEngine.test.tsにテストを追加（2件追加）
 - [x] TypeScript 0エラー確認・全テスト通過確認（193テスト全通過）
-- [ ] チェックポイント保存
+- [x] チェックポイント保存（version: a8d25243）

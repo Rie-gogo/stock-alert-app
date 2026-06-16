@@ -33,8 +33,8 @@ const INITIAL_CAPITAL_PER_STOCK = 3_000_000;
 /** ロット計算: 元金の何%を1トレードに使うか */
 const LOT_RATIO = 0.9;
 
-/** 損切り率（%）: エントリー価格から何%下落で損切り（プランB: -0.5%/高安値トリガー） */
-const STOP_LOSS_PERCENT = 0.5;
+/** 損切り率（%）: エントリー価格から何%下落で損切り（6/11良い結果: -0.7%/高安値トリガー） */
+const STOP_LOSS_PERCENT = 0.7;
 
 /** 利確率（%）: エントリー価格から何%上昇で利確 */
 const TAKE_PROFIT_PERCENT = 1.5;
@@ -54,8 +54,8 @@ const MAX_TOTAL_EXPOSURE = MARGIN_CAPITAL * MARGIN_MULTIPLIER * MARGIN_USAGE_LIM
 /** 大引け強制決済の時刻 (HH:MM) */
 const MARKET_CLOSE_TIME = "15:30";
 
-/** 午後エントリー禁止の時刻 (HH:MM) - この時刻以降は新規エントリーしない */
-const NO_ENTRY_AFTER = "14:30";
+/** 午後エントリー禁止の時刻 (HH:MM) - この時刻以降は新規エントリーしない（6/11良い結果: 15:15） */
+const NO_ENTRY_AFTER = "15:15";
 
 /** ウォームアップに必要な最低足数（MA25計算のため） */
 const MIN_CANDLES_FOR_SIGNAL = 30;
